@@ -17,6 +17,10 @@ func main() {
 	file := flag.String("file", "", "path to an iRacing .ibt telemetry file")
 	dataDir := flag.String("data-dir", "./racing-data", "output data directory")
 	video := flag.String("video", "", "optional continuous recording aligned to SessionTime")
+	videoSessionZero := flag.Duration(
+		"video-session-zero", 0,
+		"position in the recording that corresponds to iRacing SessionTime 0 (for example 30s)",
+	)
 	flag.Parse()
 	if *file == "" {
 		log.Fatal("-file is required")
@@ -31,7 +35,7 @@ func main() {
 		log.Fatal(err)
 	}
 	engine := app.NewEngine(repository, nil, media.Pipeline{}, app.Config{
-		VideoInput: *video, RejectExisting: true,
+		VideoInput: *video, VideoSessionZero: *videoSessionZero, RejectExisting: true,
 	})
 	var externalID string
 	if err := source.Emit(func(event session.Event) error {

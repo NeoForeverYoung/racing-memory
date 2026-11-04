@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fixture": "syntheticIBT() in reader_test.go",
+  "privacy": "anonymous synthetic telemetry; no iRacing member data",
+  "sha256": "de7b454dcf5e2495bf6bc070e4b06c48fa3bc04befe85d017ddecb2ee08c91cc",
+  "records": 3,
+  "external_id": "200-0",
+  "track": "Okayama",
+  "car": "MX-5 Cup",
+  "lap_time_seconds": 90.5,
+  "expected_events": {
+    "started": 1,
+    "lap_completed": 1,
+    "classification": 1,
+    "ended": 1
+  }
+}

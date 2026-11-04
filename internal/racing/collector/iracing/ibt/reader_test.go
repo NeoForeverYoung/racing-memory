@@ -3,7 +3,9 @@ package ibt
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -112,6 +114,14 @@ func FuzzParseIBT(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = parse(bytes.NewReader(data), int64(len(data)))
 	})
+}
+
+func TestSyntheticIBTFixtureDrift(t *testing.T) {
+	got := fmt.Sprintf("%x", sha256.Sum256(syntheticIBT()))
+	const want = "de7b454dcf5e2495bf6bc070e4b06c48fa3bc04befe85d017ddecb2ee08c91cc"
+	if got != want {
+		t.Fatalf("synthetic IBT sha256 = %s, want %s", got, want)
+	}
 }
 
 func syntheticIBT() []byte {

@@ -28,13 +28,14 @@ import (
 )
 
 type config struct {
-	Game       string `json:"game"`
-	DataDir    string `json:"data_dir"`
-	HTTP       string `json:"http"`
-	F1UDP      string `json:"f1_udp"`
-	OBSAddress string `json:"obs_address"`
-	OBSEnabled bool   `json:"obs_enabled"`
-	VideoInput string `json:"video_input"`
+	Game             string `json:"game"`
+	DataDir          string `json:"data_dir"`
+	HTTP             string `json:"http"`
+	F1UDP            string `json:"f1_udp"`
+	OBSAddress       string `json:"obs_address"`
+	OBSEnabled       bool   `json:"obs_enabled"`
+	VideoInput       string `json:"video_input"`
+	VideoSessionZero string `json:"video_session_zero"`
 }
 
 func main() {
@@ -59,7 +60,13 @@ func main() {
 		}
 		defer replay.Close()
 	}
-	engine := app.NewEngine(repository, replay, media.Pipeline{}, app.Config{VideoInput: cfg.VideoInput})
+	videoSessionZero, err := parseVideoSessionZero(cfg.VideoSessionZero)
+	if err != nil {
+		log.Fatal(err)
+	}
+	engine := app.NewEngine(repository, replay, media.Pipeline{}, app.Config{
+		VideoInput: cfg.VideoInput, VideoSessionZero: videoSessionZero,
+	})
 	events := make(chan session.Event, 256)
 	errs := make(chan error, 3)
 
@@ -133,6 +140,9 @@ func loadConfig(path string) (config, error) {
 	if cfg.Game != "f1" && cfg.Game != "acc" && cfg.Game != "iracing" {
 		return cfg, fmt.Errorf("unsupported game %q", cfg.Game)
 	}
+	if _, err := parseVideoSessionZero(cfg.VideoSessionZero); err != nil {
+		return cfg, err
+	}
 	host, _, err := net.SplitHostPort(cfg.HTTP)
 	if err != nil {
 		return cfg, fmt.Errorf("invalid http address: %w", err)
@@ -141,4 +151,15 @@ func loadConfig(path string) (config, error) {
 		return cfg, errors.New("http must listen on a loopback address")
 	}
 	return cfg, nil
+}
+
+func parseVideoSessionZero(value string) (time.Duration, error) {
+	if value == "" {
+		return 0, nil
+	}
+	offset, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid video_session_zero: %w", err)
+	}
+	return offset, nil
 }

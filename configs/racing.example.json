@@ -5,5 +5,6 @@
   "f1_udp": "0.0.0.0:20777",
   "obs_enabled": false,
   "obs_address": "ws://127.0.0.1:4455",
-  "video_input": ""
+  "video_input": "",
+  "video_session_zero": "0s"
 }

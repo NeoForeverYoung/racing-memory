@@ -50,7 +50,42 @@ type Pipeline struct {
 	MaxHighlights int
 }
 
-func (p Pipeline) Generate(ctx context.Context, input string, value model.Session, dir string) (model.ArtifactSet, error) {
+type editManifest struct {
+	Version          int                `json:"version"`
+	VideoSessionZero int64              `json:"video_session_zero_ms"`
+	Clips            []editManifestClip `json:"clips"`
+	Warnings         []string           `json:"warnings,omitempty"`
+}
+
+type editManifestClip struct {
+	HighlightID string              `json:"highlight_id"`
+	Kind        model.HighlightKind `json:"kind"`
+	Source      string              `json:"source"`
+	SessionAtMS int64               `json:"session_at_ms"`
+	SessionFrom int64               `json:"session_start_ms"`
+	SessionTo   int64               `json:"session_end_ms"`
+	VideoFrom   int64               `json:"video_start_ms,omitempty"`
+	VideoTo     int64               `json:"video_end_ms,omitempty"`
+	Output      string              `json:"output,omitempty"`
+	Status      string              `json:"status"`
+	Clamped     bool                `json:"clamped,omitempty"`
+	Reason      string              `json:"reason,omitempty"`
+}
+
+type mediaWindow struct {
+	start   time.Duration
+	length  time.Duration
+	stillAt time.Duration
+	clamped bool
+}
+
+func (p Pipeline) Generate(
+	ctx context.Context,
+	input string,
+	videoSessionZero time.Duration,
+	value model.Session,
+	dir string,
+) (model.ArtifactSet, error) {
 	if p.Runner == nil {
 		p.Runner = ExecRunner{}
 	}
@@ -72,27 +107,58 @@ func (p Pipeline) Generate(ctx context.Context, input string, value model.Sessio
 	}
 
 	var clips, images []string
+	manifest := editManifest{
+		Version:          1,
+		VideoSessionZero: videoSessionZero.Milliseconds(),
+		Clips:            make([]editManifestClip, 0, len(highlights)),
+	}
+	durations := make(map[string]time.Duration)
 	for i, highlight := range highlights {
 		source := input
 		if highlight.SourceClip != "" {
 			source = highlight.SourceClip
 		}
-		if source == "" {
-			return model.ArtifactSet{}, fmt.Errorf("highlight %s has no video input", highlight.ID)
+		entry := editManifestClip{
+			HighlightID: highlight.ID,
+			Kind:        highlight.Kind,
+			Source:      filepath.Base(source),
+			SessionAtMS: highlight.At.Milliseconds(),
+			SessionFrom: highlight.WindowStart.Milliseconds(),
+			SessionTo:   highlight.WindowEnd.Milliseconds(),
 		}
-		duration, err := p.probe(ctx, source)
-		if err != nil {
-			return model.ArtifactSet{}, err
+		if source == "" {
+			entry.Status = "skipped"
+			entry.Reason = "no video input"
+			manifest.Clips = append(manifest.Clips, entry)
+			manifest.Warnings = append(manifest.Warnings, fmt.Sprintf("highlight %s has no video input", highlight.ID))
+			continue
+		}
+		duration, ok := durations[source]
+		if !ok {
+			var err error
+			duration, err = p.probe(ctx, source)
+			if err != nil {
+				return model.ArtifactSet{}, err
+			}
+			durations[source] = duration
+		}
+		window, ok := mapWindow(highlight, duration, highlight.SourceClip != "", videoSessionZero)
+		if !ok {
+			entry.Status = "skipped"
+			entry.Reason = "highlight window is outside the video"
+			manifest.Clips = append(manifest.Clips, entry)
+			manifest.Warnings = append(manifest.Warnings,
+				fmt.Sprintf("highlight %s is outside video duration %s", highlight.ID, duration))
+			continue
 		}
 		clip := filepath.Join(dir, fmt.Sprintf("clip-%02d.mp4", i+1))
-		start, length, stillAt := clampWindow(highlight, duration, highlight.SourceClip != "")
 		overlay := filepath.Join(dir, fmt.Sprintf("overlay-%02d.png", i+1))
 		if err := writeOverlay(overlay, value, highlight); err != nil {
 			return model.ArtifactSet{}, err
 		}
 		args := []string{
-			"-hide_banner", "-loglevel", "error", "-y", "-ss", seconds(start), "-i", source,
-			"-i", overlay, "-t", seconds(length), "-filter_complex", "[0:v][1:v]overlay=32:32[v]",
+			"-hide_banner", "-loglevel", "error", "-y", "-ss", seconds(window.start), "-i", source,
+			"-i", overlay, "-t", seconds(window.length), "-filter_complex", "[0:v][1:v]overlay=32:32[v]",
 			"-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
 			"-c:a", "aac", "-movflags", "+faststart", clip,
 		}
@@ -102,12 +168,36 @@ func (p Pipeline) Generate(ctx context.Context, input string, value model.Sessio
 		clips = append(clips, clip)
 		imagePath := filepath.Join(dir, fmt.Sprintf("highlight-%02d.jpg", i+1))
 		if _, err := p.Runner.Run(ctx, p.FFmpeg,
-			"-hide_banner", "-loglevel", "error", "-y", "-ss", seconds(stillAt),
+			"-hide_banner", "-loglevel", "error", "-y", "-ss", seconds(window.stillAt),
 			"-i", source, "-frames:v", "1", "-q:v", "2", imagePath,
 		); err != nil {
 			return model.ArtifactSet{}, err
 		}
 		images = append(images, filepath.Base(imagePath))
+		entry.VideoFrom = window.start.Milliseconds()
+		entry.VideoTo = (window.start + window.length).Milliseconds()
+		entry.Output = filepath.Base(clip)
+		entry.Status = "included"
+		entry.Clamped = window.clamped
+		if window.clamped {
+			manifest.Warnings = append(manifest.Warnings,
+				fmt.Sprintf("highlight %s was clamped to video boundaries", highlight.ID))
+		}
+		manifest.Clips = append(manifest.Clips, entry)
+	}
+
+	manifestPath := filepath.Join(dir, "highlights.json")
+	manifestRaw, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return model.ArtifactSet{}, err
+	}
+	manifestRaw = append(manifestRaw, '\n')
+	if err := os.WriteFile(manifestPath, manifestRaw, 0o644); err != nil {
+		return model.ArtifactSet{}, err
+	}
+	if len(clips) == 0 {
+		return model.ArtifactSet{Manifest: filepath.Base(manifestPath), Warnings: manifest.Warnings},
+			errors.New("no highlight windows overlap the available video")
 	}
 
 	listPath := filepath.Join(dir, "clips.txt")
@@ -132,7 +222,10 @@ func (p Pipeline) Generate(ctx context.Context, input string, value model.Sessio
 	if _, err := p.probe(ctx, video); err != nil {
 		return model.ArtifactSet{}, fmt.Errorf("generated video verification failed: %w", err)
 	}
-	return model.ArtifactSet{Status: "ready", Video: filepath.Base(video), Images: images}, nil
+	return model.ArtifactSet{
+		Status: "ready", Video: filepath.Base(video), Manifest: filepath.Base(manifestPath),
+		Images: images, Warnings: manifest.Warnings,
+	}, nil
 }
 
 func (p Pipeline) probe(ctx context.Context, input string) (time.Duration, error) {
@@ -165,7 +258,12 @@ func selectHighlights(values []model.Highlight, limit int) []model.Highlight {
 	return out
 }
 
-func clampWindow(value model.Highlight, duration time.Duration, replayBuffer bool) (time.Duration, time.Duration, time.Duration) {
+func mapWindow(
+	value model.Highlight,
+	duration time.Duration,
+	replayBuffer bool,
+	videoSessionZero time.Duration,
+) (mediaWindow, bool) {
 	if replayBuffer {
 		length := value.WindowEnd - value.WindowStart
 		if length <= 0 || length > duration {
@@ -173,23 +271,34 @@ func clampWindow(value model.Highlight, duration time.Duration, replayBuffer boo
 		}
 		start := duration - length
 		still := duration - minDuration(2*time.Second, duration/2)
-		return start, length, still
+		return mediaWindow{start: start, length: length, stillAt: still}, length > 0
 	}
-	start, end := value.WindowStart, value.WindowEnd
-	if start < 0 {
-		start = 0
-	}
+	start := value.WindowStart + videoSessionZero
+	end := value.WindowEnd + videoSessionZero
+	still := value.At + videoSessionZero
 	if end <= start {
 		end = start + 10*time.Second
+	}
+	if end <= 0 || start >= duration {
+		return mediaWindow{}, false
+	}
+	originalStart, originalEnd := start, end
+	if start < 0 {
+		start = 0
 	}
 	if end > duration {
 		end = duration
 	}
-	still := value.At
-	if still >= duration {
-		still = duration - minDuration(time.Second, duration/2)
+	if end <= start {
+		return mediaWindow{}, false
 	}
-	return start, end - start, still
+	if still < start || still >= end {
+		still = start + (end-start)/2
+	}
+	return mediaWindow{
+		start: start, length: end - start, stillAt: still,
+		clamped: start != originalStart || end != originalEnd,
+	}, true
 }
 
 func minDuration(a, b time.Duration) time.Duration {

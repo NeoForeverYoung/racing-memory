@@ -23,8 +23,9 @@ type ReplaySaver interface {
 }
 
 type Config struct {
-	VideoInput     string
-	RejectExisting bool
+	VideoInput       string
+	VideoSessionZero time.Duration
+	RejectExisting   bool
 }
 
 type Engine struct {
@@ -124,15 +125,21 @@ func (e *Engine) generate(ctx context.Context, value model.Session) error {
 		return err
 	}
 	value.Artifacts = reportArtifacts
-	mediaArtifacts, err := e.media.Generate(ctx, e.cfg.VideoInput, value, artifactDir)
+	mediaArtifacts, err := e.media.Generate(
+		ctx, e.cfg.VideoInput, e.cfg.VideoSessionZero, value, artifactDir,
+	)
 	if err != nil {
 		value.Artifacts.Status = "partial"
 		value.Artifacts.Error = err.Error()
+		value.Artifacts.Manifest = mediaArtifacts.Manifest
+		value.Artifacts.Warnings = append(value.Artifacts.Warnings, mediaArtifacts.Warnings...)
 		return e.store.Save(value)
 	}
 	value.Artifacts.Status = "ready"
 	value.Artifacts.Video = mediaArtifacts.Video
+	value.Artifacts.Manifest = mediaArtifacts.Manifest
 	value.Artifacts.Images = mediaArtifacts.Images
+	value.Artifacts.Warnings = append(value.Artifacts.Warnings, mediaArtifacts.Warnings...)
 	return e.store.Save(value)
 }
 

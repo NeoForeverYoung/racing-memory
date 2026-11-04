@@ -117,7 +117,9 @@ type ArtifactSet struct {
 	ReportHTML string   `json:"report_html,omitempty"`
 	Scorecard  string   `json:"scorecard,omitempty"`
 	Video      string   `json:"video,omitempty"`
+	Manifest   string   `json:"manifest,omitempty"`
 	Images     []string `json:"images,omitempty"`
+	Warnings   []string `json:"warnings,omitempty"`
 	Error      string   `json:"error,omitempty"`
 }
 
