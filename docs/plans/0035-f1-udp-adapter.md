@@ -1,6 +1,6 @@
 # Plan 0035：F1 UDP 游戏适配器
 
-> 状态：实施中；raw capture 基础已实现，packet decoder 等待协议证据与 fixture
+> 状态：实施中；F1 25 documented-packet decoder 与 raw capture 已实现，真实-game fixture/Windows end-to-end 验收待补
 > 更新时间：2026-11-05  
 > 前置：Plan 0034 模拟赛车平台模块化  
 > 首版目标：EA SPORTS F1 25（Windows PC）；以 F1 25 官方 UDP 文档、packet format/version 与 golden capture 为唯一 decoder 依据
@@ -182,9 +182,10 @@ sequenceDiagram
 
 ### 已实现（2026-11-05）
 
-- 新增 `@lapwing/game-adapter-f1`：版本化、length-prefixed `.f1udp` 原始 datagram capture codec 和截断/未知版本拒绝测试；
+- 新增 `@lapwing/game-adapter-f1`：版本化、length-prefixed `.f1udp` 原始 datagram capture codec，及 F1 25 packet format 2025/game year 25/packet version 1 的 Motion、Session、Lap、Event、Participants、Car Telemetry decoder；
 - Windows companion 的 `F1UdpReceiver` 默认绑定 loopback、可限制 sender、统计拒收包，并以临时文件 + rename 原子完成 capture；
-- 没有添加 packet decoder、`GameAdapter` 的 canonical mapping 或任何 F1 capability 声明，避免未验证布局进入 core。
+- `f125Adapter` 将上述有文档字段转换为 canonical world、track-progress、操控/速度、圈时、名次、pit 与 driver capability；不制造 GPS，也不解析未实现 packet id。
+- fixture 当前是按官方二进制结构构造的 conformance test，不声称为真实游戏 capture；真实练习/短赛 capture 仍是 decoder、录屏生命周期与成绩单发布门禁。
 
 ## 9. 需要用户确认/提供
 

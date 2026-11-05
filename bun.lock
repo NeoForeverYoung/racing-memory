@@ -111,6 +111,10 @@
     "packages/game-adapter-f1": {
       "name": "@lapwing/game-adapter-f1",
       "version": "5.0.0",
+      "dependencies": {
+        "@lapwing/game-adapter-kit": "workspace:*",
+        "@lapwing/telemetry-core": "workspace:*",
+      },
     },
     "packages/game-adapter-iracing": {
       "name": "@lapwing/game-adapter-iracing",

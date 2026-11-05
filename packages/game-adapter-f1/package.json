@@ -5,6 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./capture": "./src/capture.ts"
+    "./capture": "./src/capture.ts",
+    "./f125": "./src/protocol/f125.ts"
+  },
+  "dependencies": {
+    "@lapwing/game-adapter-kit": "workspace:*",
+    "@lapwing/telemetry-core": "workspace:*"
   }
 }
