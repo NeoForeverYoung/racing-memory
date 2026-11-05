@@ -1,0 +1,64 @@
+{
+  "id": "race-20261104T070220.365147000Z",
+  "game": "f1",
+  "protocol_version": "demo",
+  "track": "Spa",
+  "car": "McLaren",
+  "driver": "Demo Driver",
+  "started_at": "2026-11-04T07:02:20.365142Z",
+  "ended_at": "2026-11-04T07:03:10.365142Z",
+  "state": "completed",
+  "current_lap": 1,
+  "position": 4,
+  "laps": [
+    {
+      "number": 1,
+      "time": 90123000000,
+      "position": 4,
+      "valid": true,
+      "completed_at": "2026-11-04T07:02:55.365142Z"
+    }
+  ],
+  "highlights": [
+    {
+      "id": "overtake-1-20000",
+      "kind": "overtake",
+      "at": 20000000000,
+      "window_start": 8000000000,
+      "window_end": 25000000000,
+      "score": 80,
+      "title": "超越对手"
+    },
+    {
+      "id": "best_lap-2-35000",
+      "kind": "best_lap",
+      "at": 35000000000,
+      "window_start": 23000000000,
+      "window_end": 40000000000,
+      "score": 100,
+      "title": "最佳圈 1:30.123"
+    },
+    {
+      "id": "finish-3-50000",
+      "kind": "finish",
+      "at": 50000000000,
+      "window_start": 38000000000,
+      "window_end": 55000000000,
+      "score": 90,
+      "title": "冲线"
+    }
+  ],
+  "result_source": "derived",
+  "artifacts": {
+    "status": "ready",
+    "report_json": "report.json",
+    "report_html": "scorecard.html",
+    "scorecard": "scorecard.png",
+    "video": "highlights.mp4",
+    "images": [
+      "highlight-01.jpg",
+      "highlight-02.jpg",
+      "highlight-03.jpg"
+    ]
+  }
+}

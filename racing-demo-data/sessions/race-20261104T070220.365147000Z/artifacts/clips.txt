@@ -1,0 +1,3 @@
+file '/Users/neilluo/workspaces/game/racing-memory/racing-demo-data/sessions/race-20261104T070220.365147000Z/artifacts/clip-01.mp4'
+file '/Users/neilluo/workspaces/game/racing-memory/racing-demo-data/sessions/race-20261104T070220.365147000Z/artifacts/clip-02.mp4'
+file '/Users/neilluo/workspaces/game/racing-memory/racing-demo-data/sessions/race-20261104T070220.365147000Z/artifacts/clip-03.mp4'
