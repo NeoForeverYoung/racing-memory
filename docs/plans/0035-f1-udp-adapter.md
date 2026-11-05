@@ -3,6 +3,7 @@
 > 状态：实施中；raw capture 基础已实现，packet decoder 等待协议证据与 fixture
 > 更新时间：2026-11-05  
 > 前置：Plan 0034 模拟赛车平台模块化  
+> 首版目标：EA SPORTS F1 25（Windows PC）；以 F1 25 官方 UDP 文档、packet format/version 与 golden capture 为唯一 decoder 依据
 > 原则：fixture-first；只实现有协议文档和真实数据证明的字段
 
 ## 1. 目标
@@ -189,7 +190,7 @@ sequenceDiagram
 
 实施前需要：
 
-1. 你要优先支持的具体 F1 游戏年份；
+1. 已确认：首版优先支持 EA SPORTS F1 25（Windows PC）；
 2. 游戏平台是 Windows PC，还是主机向 PC 转发 UDP；
 3. 一份练习赛 capture 和一份短赛 capture；
 4. 是否首版就要求自动 OBS，还是先完成 capture/replay；
