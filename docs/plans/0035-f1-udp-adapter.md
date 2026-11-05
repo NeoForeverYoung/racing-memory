@@ -1,6 +1,6 @@
 # Plan 0035：F1 UDP 游戏适配器
 
-> 状态：草案，等待评审  
+> 状态：实施中；raw capture 基础已实现，packet decoder 等待协议证据与 fixture
 > 更新时间：2026-11-05  
 > 前置：Plan 0034 模拟赛车平台模块化  
 > 原则：fixture-first；只实现有协议文档和真实数据证明的字段
@@ -178,6 +178,12 @@ sequenceDiagram
 - Sim/Full 双构建；
 - Windows 实机完成“启动游戏 → 自动录屏 → capture → bundle → 60 秒 reel”；
 - capture 与遥测默认只写本地，不上传。
+
+### 已实现（2026-11-05）
+
+- 新增 `@lapwing/game-adapter-f1`：版本化、length-prefixed `.f1udp` 原始 datagram capture codec 和截断/未知版本拒绝测试；
+- Windows companion 的 `F1UdpReceiver` 默认绑定 loopback、可限制 sender、统计拒收包，并以临时文件 + rename 原子完成 capture；
+- 没有添加 packet decoder、`GameAdapter` 的 canonical mapping 或任何 F1 capability 声明，避免未验证布局进入 core。
 
 ## 9. 需要用户确认/提供
 

@@ -102,10 +102,15 @@
       "name": "@lapwing/windows-companion",
       "version": "5.0.0",
       "dependencies": {
+        "@lapwing/game-adapter-f1": "workspace:*",
         "@lapwing/game-adapter-iracing": "workspace:*",
         "@lapwing/game-adapter-kit": "workspace:*",
         "@lapwing/media": "workspace:*",
       },
+    },
+    "packages/game-adapter-f1": {
+      "name": "@lapwing/game-adapter-f1",
+      "version": "5.0.0",
     },
     "packages/game-adapter-iracing": {
       "name": "@lapwing/game-adapter-iracing",
@@ -497,6 +502,8 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "https://mirrors.tencent.com/npm/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@lapwing/cli": ["@lapwing/cli@workspace:apps/cli"],
+
+    "@lapwing/game-adapter-f1": ["@lapwing/game-adapter-f1@workspace:packages/game-adapter-f1"],
 
     "@lapwing/game-adapter-iracing": ["@lapwing/game-adapter-iracing@workspace:packages/game-adapter-iracing"],
 

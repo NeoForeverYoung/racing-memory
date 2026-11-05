@@ -16,6 +16,7 @@ export default defineConfig({
     include: [
       "apps/web/src/**/*.{test,spec}.{ts,tsx}",
       "apps/cli/src/**/*.{test,spec}.{ts,tsx}",
+      "apps/windows-companion/src/**/*.{test,spec}.{ts,tsx}",
       "packages/**/*.{test,spec}.{ts,tsx}",
       "supabase/functions/**/*.{test,spec}.ts",
       // Build tooling (CI-only, never shipped) — tested here, but kept out of the
@@ -51,6 +52,7 @@ export default defineConfig({
         "apps/web/src/lib/i18n/index.ts", // i18next bootstrap — side-effecting init + dynamic-import backend (like main.tsx)
         "apps/web/src/vite-env.d.ts",
         "apps/cli/src/**/*.{test,spec}.{ts,tsx}",
+      "apps/windows-companion/src/**/*.{test,spec}.{ts,tsx}",
         "packages/**/*.{test,spec}.{ts,tsx}",
       ],
       // Floors guard against regressions in the logic we test. Set a few points

@@ -6,7 +6,8 @@
   "dependencies": {
     "@lapwing/game-adapter-iracing": "workspace:*",
     "@lapwing/game-adapter-kit": "workspace:*",
-    "@lapwing/media": "workspace:*"
+    "@lapwing/media": "workspace:*",
+    "@lapwing/game-adapter-f1": "workspace:*"
   },
   "exports": {
     ".": "./src/index.ts",

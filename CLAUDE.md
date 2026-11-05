@@ -23,6 +23,7 @@ telemetry viewer.
 - `packages/telemetry-core/` — canonical telemetry and bundle/job contracts.
 - `packages/game-adapter-kit/` — adapter/capability/fixture contracts.
 - `packages/game-adapter-iracing/` — IBT parser, IRSDK source and finalizer.
+- `packages/game-adapter-f1/` — versioned raw F1 UDP capture boundary; packet decoding waits for a documented game version and golden fixture.
 - `packages/media/` — recorder, timeline and Racing Memory story contracts.
 - `packages/hardware-plugin/` — optional Full-profile hardware boundary.
 

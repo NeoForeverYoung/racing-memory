@@ -70,8 +70,7 @@ position 时，Racing Memory 只生成有证据的片段。
 4. WRC Generations：先核验可合法依赖的稳定协议和 fixture；
 5. 原生协议不足时，新增独立 SimHub/JSONL bridge adapter。
 
-iRacing 是 reference adapter。以上游戏在协议与 fixture 就绪前不进入 core，也不
-通过猜测字段实现。
+iRacing 是 reference adapter。F1 的 versioned raw `.f1udp` capture 已可由 Windows companion 本地写入并离线重放，但尚未有 packet decoder 或 canonical 映射；二者仍须等游戏年份、官方协议和 fixture 同时就绪。以上游戏在协议与 fixture 就绪前不进入 core，也不通过猜测字段实现。
 # 模拟赛车游戏 Adapter
 
 LapWing 通过 `@lapwing/game-adapter-kit` 隔离游戏协议，通过

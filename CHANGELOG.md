@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **F1 UDP capture foundation.** The Windows companion can now record raw, versioned `.f1udp` datagram captures locally with loopback-safe defaults and atomic finalization. Packet decoding remains deliberately unavailable until a specific F1 game protocol and redistributable golden fixture are verified. (Plan 0035.)
 - **Modular simulation-racing platform.** LapWing is now a Bun-workspaces
   monorepo with separate Web, CLI and Windows companion apps, a non-GPS-
   dependent canonical telemetry model, capability-driven game adapters, shared
