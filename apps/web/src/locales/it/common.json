@@ -1,0 +1,45 @@
+{
+  "_machine": true,
+  "appName": "LapWing",
+  "actions": {
+    "signOut": "Esci",
+    "profile": "Profilo",
+    "sponsor": "Sostieni",
+    "loading": "Caricamento…",
+    "reset": "Ripristina valori predefiniti",
+    "update": "Aggiorna",
+    "updating": "Aggiornamento…",
+    "backToHome": "Torna alla home"
+  },
+  "language": {
+    "heading": "Lingua",
+    "label": "Lingua di visualizzazione"
+  },
+  "updateToast": {
+    "title": "Aggiornamento disponibile",
+    "description": "Aggiorna per cancellare i file memorizzati nella cache obsoleti e caricare l'ultima versione dell'app.",
+    "refresh": "Aggiorna",
+    "later": "Più tardi",
+    "updating": "Aggiornamento…",
+    "updatingBody": "Scarico l'ultima versione — un attimo.",
+    "updated": "Sei sull'ultima versione."
+  },
+  "usageStatsNotice": {
+    "title": "LapWing ora conta le visite anonime",
+    "description": "Solo visualizzazioni di pagina, senza cookie e senza nulla sulle tue sessioni. Disattivalo quando vuoi in Impostazioni → Privacy."
+  },
+  "install": {
+    "title": "Installa LapWing",
+    "body": "Funziona offline in pista — non serve segnale.",
+    "action": "Installa",
+    "dismiss": "Non ora",
+    "iosWhy": "Su iPhone e iPad, Safari elimina i dati offline di un sito non installato dopo circa una settimana. Aggiungere LapWing alla schermata Home li conserva — insieme alle sessioni salvate — tra un weekend di gara e l’altro.",
+    "iosStepShare": "Tocca Condividi nella barra di Safari",
+    "iosStepAdd": "Scegli «Aggiungi a Home»",
+    "iosStepOpen": "Poi apri LapWing dalla nuova icona una volta mentre hai ancora segnale, così può salvarsi per l’uso offline."
+  },
+  "notFound": {
+    "title": "Ops! Pagina non trovata",
+    "home": "Torna alla home"
+  }
+}

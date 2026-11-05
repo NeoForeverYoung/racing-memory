@@ -1,0 +1,25 @@
+<!doctype html><html><body><pre id="out">pending</pre>
+<script type="module">
+import i18n, { i18nReady, initialLanguage } from "/src/lib/i18n/index.ts";
+import { initPlugins } from "/src/plugins/index.ts";
+initPlugins();
+const t0 = performance.now();
+const out = {};
+try {
+  await i18nReady;
+  out.readyMs = Math.round(performance.now() - t0);
+  i18n.on("failedLoading", (l, n, m) => { (out.failed ||= []).push([l, n, String(m)]); });
+  await i18n.loadNamespaces(["coach","tools"]).catch(e => out.nsErr = String(e));
+  out.nsMs = Math.round(performance.now() - t0);
+  out.initial = initialLanguage;
+  out.lang = i18n.language; out.resolved = i18n.resolvedLanguage; out.languages = i18n.languages;
+  out.supported = i18n.options.supportedLngs;
+  out.hasZh = i18n.hasResourceBundle("zh-CN", "common");
+  out.store = Object.keys(i18n.store.data);
+  out.heading = i18n.t("common:language.heading");
+  await i18n.changeLanguage("zh-CN");
+  out.after = { lang: i18n.language, resolved: i18n.resolvedLanguage, languages: i18n.languages, heading: i18n.t("common:language.heading"), store: Object.keys(i18n.store.data) };
+  try { const m = await import("/src/locales/zh-CN/common.json"); out.directImport = Object.keys(m.default).slice(0,3); } catch (e) { out.directImport = String(e); }
+} catch (e) { out.err = String(e && e.stack || e); }
+document.getElementById("out").textContent = "RESULT " + JSON.stringify(out);
+</script></body></html>

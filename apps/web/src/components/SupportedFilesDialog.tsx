@@ -1,0 +1,73 @@
+import { FileText } from "lucide-react";
+import { useTranslation, Trans } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { interceptExternal } from "@/lib/platform";
+
+const LOGGER_URL = "https://github.com/TheAngryRaven/DovesDataLogger";
+const LIBXRK_URL = "https://github.com/m3rlin45/libxrk";
+
+// Format ids in display order; their name/body text lives in the `landing`
+// locale (supportedFiles.primary.<id> / .secondary.<id>). Format names,
+// extensions and brand/library links stay literal inside the locale strings.
+// Every listed format has automated parser test coverage (several against
+// full real user-supplied sessions committed as fixtures — see
+// src/lib/__fixtures__/), so the list carries no per-format status badges.
+const PRIMARY_IDS = ["dovex", "gopro", "xrk", "iracing", "motecLd", "vbo"] as const;
+const SECONDARY_IDS = ["ubx", "nmea", "motecCsv", "alfano", "aimCsv"] as const;
+
+// Shared rich-text components for the format bodies. `<Trans>` only uses the
+// tags a given string references, so one map covers every format.
+const FORMAT_COMPONENTS = {
+  code: <code className="text-primary" />,
+  logger: (
+    <a href={LOGGER_URL} target="_blank" rel="noopener noreferrer" onClick={(e) => interceptExternal(e, LOGGER_URL)} className="text-primary hover:underline" />
+  ),
+  libxrk: (
+    <a href={LIBXRK_URL} target="_blank" rel="noopener noreferrer" onClick={(e) => interceptExternal(e, LIBXRK_URL)} className="text-primary hover:underline" />
+  ),
+};
+
+export function SupportedFilesDialog() {
+  const { t } = useTranslation("landing");
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <FileText className="w-4 h-4" />
+          <span className="hidden sm:inline">{t("supportedFiles.trigger")}</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t("supportedFiles.title")}</DialogTitle>
+          <DialogDescription>{t("supportedFiles.description")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          {PRIMARY_IDS.map((id) => (
+            <div key={id} className="p-3 rounded-md border border-primary/30 bg-primary/5">
+              <p className="font-semibold text-foreground">{t(`supportedFiles.primary.${id}.name`)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                <Trans t={t} i18nKey={`supportedFiles.primary.${id}.body`} components={FORMAT_COMPONENTS} />
+              </p>
+            </div>
+          ))}
+
+          <div className="border-t border-border my-2" />
+
+          {SECONDARY_IDS.map((id) => (
+            <div key={id} className="p-3 rounded-md border border-border bg-muted/30">
+              <p className="font-semibold text-foreground">{t(`supportedFiles.secondary.${id}.name`)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                <Trans t={t} i18nKey={`supportedFiles.secondary.${id}.body`} components={FORMAT_COMPONENTS} />
+              </p>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

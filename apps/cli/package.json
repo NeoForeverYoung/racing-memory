@@ -1,0 +1,21 @@
+{
+  "name": "@lapwing/cli",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "bin": {
+    "lapwing": "./src/lapwing.ts"
+  },
+  "dependencies": {
+    "@lapwing/game-adapter-iracing": "workspace:*",
+    "@lapwing/game-adapter-kit": "workspace:*",
+    "@lapwing/media": "workspace:*",
+    "@lapwing/telemetry-core": "workspace:*",
+    "@lapwing/windows-companion": "workspace:*",
+    "sharp": "^0.35.5"
+  },
+  "scripts": {
+    "start": "bun src/lapwing.ts",
+    "test": "vitest run src"
+  }
+}

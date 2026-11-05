@@ -1,0 +1,45 @@
+{
+  "_machine": true,
+  "appName": "LapWing",
+  "actions": {
+    "signOut": "ログアウト",
+    "profile": "プロフィール",
+    "sponsor": "支援する",
+    "loading": "読み込み中…",
+    "reset": "デフォルトに戻す",
+    "update": "更新",
+    "updating": "更新中…",
+    "backToHome": "ホームに戻る"
+  },
+  "language": {
+    "heading": "言語",
+    "label": "表示言語"
+  },
+  "updateToast": {
+    "title": "更新があります",
+    "description": "再読み込みして古いキャッシュファイルを消去し、最新のアプリバージョンを読み込みます。",
+    "refresh": "再読み込み",
+    "later": "後で",
+    "updating": "更新中…",
+    "updatingBody": "最新バージョンを取得しています — 少々お待ちください。",
+    "updated": "最新バージョンになりました。"
+  },
+  "usageStatsNotice": {
+    "title": "LapWing は匿名の訪問数を集計するようになりました",
+    "description": "ページビューのみで、Cookie は使わず、セッションの内容も送信しません。設定 → プライバシー からいつでもオフにできます。"
+  },
+  "install": {
+    "title": "LapWing をインストール",
+    "body": "電波がなくてもサーキットでオフラインで動作します。",
+    "action": "インストール",
+    "dismiss": "後で",
+    "iosWhy": "iPhone と iPad では、インストールしていないサイトのオフラインデータを Safari が約1週間で削除します。LapWing をホーム画面に追加しておくと、保存したセッションとあわせてレースウィークエンドをまたいで保持されます。",
+    "iosStepShare": "Safari のツールバーで「共有」をタップ",
+    "iosStepAdd": "「ホーム画面に追加」を選択",
+    "iosStepOpen": "その後、電波があるうちに新しいアイコンから LapWing を一度開いて、オフライン用に保存させてください。"
+  },
+  "notFound": {
+    "title": "ページが見つかりません",
+    "home": "ホームに戻る"
+  }
+}

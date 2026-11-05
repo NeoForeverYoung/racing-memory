@@ -1,0 +1,310 @@
+/* Self-hosted fonts (latin subset, weights 400-700) so they ship in the SW
+   precache and render offline from first paint — no fonts.googleapis.com
+   round-trip. Family names match the Google Fonts originals, so the Tailwind
+   `font-sans`/`font-mono` tokens stay unchanged. */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+@import '@fontsource/jetbrains-mono/latin-600.css';
+@import '@fontsource/jetbrains-mono/latin-700.css';
+
+/* Archivo is the PerchWerks/LapWing brand typeface (perchwerks-style/fonts).
+   It's used only for display type (`font-brand`) — the dense app UI stays on
+   Inter so tables and toolbars keep their metrics. Bundled from src/ so Vite
+   hashes it into the SW precache like the @fontsource files.
+   Only the italic face ships: every `font-brand` use is italic, and the upright
+   variable face was ~35 KB of precache no page ever rendered. Add it back
+   (Archivo-Variable.woff2, font-style: normal) if upright brand type appears. */
+@font-face {
+  font-family: "Archivo";
+  src: url("./assets/fonts/Archivo-Variable-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* LapWing brand palette (github.com/TheAngryRaven/perchwerks-style,
+     tokens/tokens.json): :root is the `lapwing-light` theme, .dark is
+     `lapwing-dark`, mapped onto the shadcn token names. Keep the two in step
+     with that repo rather than tuning hues here. The racing/telemetry colours
+     below are deliberately NOT brand colours — the brand defines no
+     data-visualisation palette. */
+  :root {
+    --background: 260 75% 98.4%;
+    --foreground: 258 100% 8.4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 258 100% 8.4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 258 100% 8.4%;
+
+    --primary: 253 65.3% 48.6%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 256 82.6% 95.5%;
+    --secondary-foreground: 256 22.1% 30.2%;
+
+    --muted: 257 63.6% 95.7%;
+    --muted-foreground: 255 17.6% 40%;
+
+    --accent: 256 82.6% 95.5%;
+    --accent-foreground: 253 66.1% 32.4%;
+
+    --destructive: 346 79% 39.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Warning / preview state — amber that pops in light mode */
+    --warning: 37 100% 27.1%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Success / positive state — green (e.g. faster-than-best delta, saved) */
+    --success: 162 76.9% 25.5%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 257 56.8% 92.7%;
+    --input: 257 48.3% 88.6%;
+    --ring: 253 65.3% 48.6%;
+
+    --radius: 0.5rem;
+
+    /* Racing-specific colors */
+    --speed-slow: 120 60% 38%;
+    --speed-medium: 45 90% 45%;
+    --speed-fast: 15 85% 50%;
+    --speed-max: 0 75% 48%;
+
+    --start-finish: 0 75% 50%;
+    --lap-best: 120 60% 40%;
+    --telemetry-speed: 180 70% 40%;
+    --telemetry-rpm: 45 85% 45%;
+    --telemetry-temp: 0 70% 50%;
+    --scrub-cursor: 0 75% 50%;
+
+    --chart-grid: 257 56.8% 92.7%;
+    --chart-axis: 255 17.6% 40%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 258 100% 8.4%;
+    --sidebar-primary: 253 65.3% 48.6%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 256 82.6% 95.5%;
+    --sidebar-accent-foreground: 253 66.1% 32.4%;
+    --sidebar-border: 257 56.8% 92.7%;
+    --sidebar-ring: 253 65.3% 48.6%;
+  }
+
+  .dark {
+    --background: 258 68.3% 12.4%;
+    --foreground: 255 100% 96.9%;
+
+    --card: 258 55.8% 15.1%;
+    --card-foreground: 255 100% 96.9%;
+
+    --popover: 258 50% 18.8%;
+    --popover-foreground: 255 100% 96.9%;
+
+    --primary: 261 87.4% 65.7%;
+    --primary-foreground: 265 83% 9.2%;
+
+    --secondary: 258 52.7% 21.6%;
+    --secondary-foreground: 255 100% 96.9%;
+
+    --muted: 257 53.8% 17.8%;
+    --muted-foreground: 257 27.7% 65.3%;
+
+    --accent: 258 52.7% 21.6%;
+    --accent-foreground: 255 100% 96.9%;
+
+    --destructive: 349 100% 73.9%;
+    --destructive-foreground: 265 83% 9.2%;
+
+    /* Warning / preview state — brighter amber that pops in dark mode */
+    --warning: 39 85.5% 59.4%;
+    --warning-foreground: 265 83% 9.2%;
+
+    /* Success / positive state — brighter green for dark mode */
+    --success: 160 58.6% 56.5%;
+    --success-foreground: 265 83% 9.2%;
+
+    --border: 256 47.4% 22.4%;
+    --input: 255 40.7% 28.4%;
+    --ring: 260 86.7% 79.4%;
+
+    /* Racing-specific colors */
+    --speed-slow: 120 60% 45%;
+    --speed-medium: 45 90% 55%;
+    --speed-fast: 15 85% 55%;
+    --speed-max: 0 75% 50%;
+
+    --start-finish: 0 75% 55%;
+    --lap-best: 120 60% 50%;
+    --telemetry-speed: 180 70% 55%;
+    --telemetry-rpm: 45 85% 55%;
+    --telemetry-temp: 0 70% 55%;
+    --scrub-cursor: 0 75% 55%;
+
+    --chart-grid: 256 44.6% 25.5%;
+    --chart-axis: 257 27.7% 65.3%;
+
+    --sidebar-background: 258 55.8% 15.1%;
+    --sidebar-foreground: 255 100% 96.9%;
+    --sidebar-primary: 261 87.4% 65.7%;
+    --sidebar-primary-foreground: 265 83% 9.2%;
+    --sidebar-accent: 258 52.7% 21.6%;
+    --sidebar-accent-foreground: 255 100% 96.9%;
+    --sidebar-border: 256 47.4% 22.4%;
+    --sidebar-ring: 260 86.7% 79.4%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .racing-card {
+    @apply bg-card border border-border rounded-lg;
+  }
+  
+  .data-display {
+    @apply font-mono text-sm tabular-nums;
+  }
+  
+  .speed-gradient {
+    background: linear-gradient(90deg, 
+      hsl(var(--speed-slow)), 
+      hsl(var(--speed-medium)), 
+      hsl(var(--speed-fast)),
+      hsl(var(--speed-max))
+    );
+  }
+  
+  /* Leaflet map styling overrides */
+  .leaflet-container {
+    background: hsl(var(--background));
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  .leaflet-control-attribution {
+    background: hsl(var(--card) / 0.8) !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-size: 10px;
+  }
+  
+  .leaflet-control-attribution a {
+    color: hsl(var(--primary)) !important;
+  }
+}
+
+@layer utilities {
+  /* Keep app chrome clear of device notches / status bars on native (Android
+     WebView / iOS) and installed PWAs, which draw edge-to-edge. Requires
+     `viewport-fit=cover` (set in index.html). Insets resolve to 0 on browsers
+     and desktops without a safe area, so this is a no-op everywhere else.
+     Applied to every full-screen surface — the app shell + landing, full-page
+     routes (login/register/admin/legal), and portal overlays like the file-
+     manager drawer — whose `border-box` sizing keeps the padding inside
+     `h-screen`/`min-h-screen` (no overflow) while the surface's background
+     fills the inset region behind the status bar. */
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* The horizontal (left/right) inset on its own — for surfaces whose top inset
+     is owned by a sticky header (which carries `.safe-area-top`), so we don't
+     double-pad the top. */
+  .safe-area-x {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* The top inset on its own — for a sticky/fixed header so its background fills
+     behind the status bar while its content stays clear of the notch. */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Modal/dialog padding that also clears device notches: never less than the
+     base 1.5rem (so it doesn't collapse to 0 on un-notched devices the way a
+     bare `env()` inset would), growing to the safe-area inset where present. */
+  .safe-area-modal {
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  /* Hide default number input spinners — custom component handles step buttons */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+}

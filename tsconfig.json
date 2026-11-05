@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {
+      "@/*": [
+        "./apps/web/src/*"
+      ]
+    },
+    "skipLibCheck": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/hardware-plugin"
+    },
+    {
+      "path": "./apps/cli"
+    },
+    {
+      "path": "./apps/windows-companion"
+    },
+    {
+      "path": "./packages/media"
+    },
+    {
+      "path": "./packages/game-adapter-kit"
+    },
+    {
+      "path": "./packages/game-adapter-iracing"
+    },
+    {
+      "path": "./packages/hardware-plugin"
+    },
+    {
+      "path": "./packages/telemetry-core"
+    },
+    {
+      "path": "./apps/web/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/web/tsconfig.node.json"
+    }
+  ]
+}

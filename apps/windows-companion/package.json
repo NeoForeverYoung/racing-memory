@@ -1,0 +1,15 @@
+{
+  "name": "@lapwing/windows-companion",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "dependencies": {
+    "@lapwing/game-adapter-iracing": "workspace:*",
+    "@lapwing/game-adapter-kit": "workspace:*",
+    "@lapwing/media": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./obs": "./src/obsRecorder.ts"
+  }
+}

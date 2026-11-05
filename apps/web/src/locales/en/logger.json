@@ -1,0 +1,128 @@
+{
+  "title": "Download from logger",
+  "subtitle": "Choose your logger to start a download.",
+  "comingSoon": "Coming soon",
+  "close": "Close",
+  "requestLogger": "Request additional dataloggers",
+  "trademarks": "MyChron is a trademark of AiM Tech S.r.l. and Alfano is a trademark of Alfano S.A. LapWing is independent and not affiliated with or endorsed by them; all product names, logos, and brands are the property of their respective owners.",
+  "tags": {
+    "fledgling": "DIY logger · Bluetooth LE",
+    "mychron": "Wi-Fi · native app required",
+    "alfano": "Bluetooth serial · native app required"
+  },
+  "fledglingUnsupported": "Web Bluetooth isn't supported here — use Chrome, Edge or Opera on desktop.",
+  "progress": {
+    "received": "Received:",
+    "speed": "Speed:",
+    "eta": "ETA:",
+    "complete": "{{percent}}% complete"
+  },
+  "errors": {
+    "unreachable": "Can't reach the logger. Make sure it's powered on and nearby.",
+    "permission": "Bluetooth permission needed — allow Bluetooth / Nearby devices for this app, then try again.",
+    "hung": "Lost the connection to the logger mid-transfer.",
+    "protocol": "The logger sent an unexpected response.",
+    "unsupported": "This feature isn't available on this device.",
+    "unsupportedAlfano": "Alfano downloads aren't available on this device yet — they're Android-only for now.",
+    "wifiDeclined": "Select your MyChron's Wi-Fi network to continue.",
+    "notConnected": "The logger is no longer connected.",
+    "unknown": "Something went wrong.",
+    "detailLabel": "Technical details",
+    "actionRetry": "Try again",
+    "actionRescan": "Rescan",
+    "actionReconnect": "Reconnect"
+  },
+  "fledgling": {
+    "flow": {
+      "connecting": "Connecting…",
+      "scanningStatus": "Scanning for DovesLapTimer…",
+      "pickerHint": "If prompted, select \"DovesLapTimer\" from the list",
+      "fetching": "Fetching files…",
+      "fetchingStatus": "Fetching file list…",
+      "selectFile": "Select a file to download",
+      "downloading": "Downloading…",
+      "errorTitle": "Connection error",
+      "instructions": "Tap a file to download and load it:",
+      "empty": "No files found on device",
+      "savedHint": "The file was saved and can be found in Browse Files.",
+      "cancel": "Cancel"
+    }
+  },
+  "mychron": {
+    "nativeTitle": "MyChron download",
+    "nativeBody": "TBD",
+    "webTitle": "Native app required",
+    "webBody": "MyChron loggers transfer over Wi-Fi, which web browsers can't access directly. A dedicated native app to download from MyChron is in active development and is slated to launch around July 2026.",
+    "flow": {
+      "connecting": "Connecting to your MyChron…",
+      "wifiSelecting": "Waiting for you to pick your MyChron in the Wi-Fi list…",
+      "wifiHint": "Approve the connection in the system dialog to continue.",
+      "fetching": "Fetching sessions…",
+      "selectFile": "Select a session to download",
+      "downloading": "Downloading…",
+      "errorTitle": "Connection error",
+      "instructions": "Tap a session to download and load it:",
+      "empty": "No sessions on this device",
+      "savedHint": "The file was saved and can be found in Browse Files.",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    }
+  },
+  "doveslogger": {
+    "flow": {
+      "scanning": "Scanning for loggers…",
+      "selectDevice": "Select your logger",
+      "deviceInstructions": "Tap your logger to connect:",
+      "noDevices": "No loggers found. Make sure yours is powered on, Bluetooth is enabled, then rescan.",
+      "rescan": "Rescan",
+      "connecting": "Connecting…",
+      "fetching": "Fetching sessions…",
+      "selectFile": "Select a session to download",
+      "downloading": "Downloading…",
+      "errorTitle": "Connection error",
+      "instructions": "Tap a session to download and load it:",
+      "empty": "No sessions on this device",
+      "savedHint": "The file was saved and can be found in Browse Files.",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    },
+    "firmware": {
+      "button": "Firmware update",
+      "title": "Firmware update",
+      "checking": "Checking for updates…",
+      "upToDate": "Firmware v{{version}} is up to date.",
+      "noBuild": "No firmware build is available for this logger.",
+      "installLatest": "Install firmware v{{version}} ({{variant}})?",
+      "variantConfirmTitle": "Which logger variant do you have?",
+      "variantConfirmBody": "This logger didn't report its hardware variant. Installing the wrong image will fail on-device, but pick carefully:",
+      "install": "Install",
+      "rebooting": "Update sent — your logger is flashing the new firmware and restarting.",
+      "rebootingBody": "The Bluetooth link drops while it installs. Give it a few seconds, then rescan to reconnect.",
+      "notAvailable": "Firmware updates aren't available in this app version yet.",
+      "notAvailableBody": "Update the app to get logger firmware updates, or use the web app over Web Bluetooth.",
+      "back": "Back"
+    }
+  },
+  "alfano": {
+    "title": "Native app required",
+    "body": "Alfano uses Bluetooth serial, which web browsers can't access in-browser — it will also require the native app. A dedicated native app to download from Alfano is in development.",
+    "flow": {
+      "scanning": "Scanning for Alfano loggers…",
+      "selectDevice": "Select your Alfano",
+      "deviceInstructions": "Tap your Alfano to connect:",
+      "noDevices": "No Alfano loggers found. Make sure yours is powered on, Bluetooth is enabled, then rescan.",
+      "rescan": "Rescan",
+      "connecting": "Connecting…",
+      "fetching": "Fetching sessions…",
+      "selectFile": "Select a session to download",
+      "downloading": "Downloading…",
+      "errorTitle": "Connection error",
+      "unavailableTitle": "Not available on this device",
+      "instructions": "Tap a session to download and load it:",
+      "empty": "No sessions on this device",
+      "savedHint": "The file was saved and can be found in Browse Files.",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    }
+  }
+}

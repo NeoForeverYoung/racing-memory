@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node", "vite/client"],
+    "baseUrl": "../..",
+    "paths": {
+      "@product/gopro-import": ["apps/web/src/lib/gopro/goproImport.ts"],
+      "@/*": ["apps/web/src/*"]
+    }
+  },
+  "include": ["src", "../web/src/lib", "../web/src/types", "../web/src/vite-env.d.ts"]
+}

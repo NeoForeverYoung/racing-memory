@@ -1,0 +1,539 @@
+import { defineConfig, loadEnv, type Plugin } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+import fs from "fs";
+import { createHash } from "crypto";
+import { execSync } from "child_process";
+import { VitePWA } from "vite-plugin-pwa";
+import { resolveBranchBackend } from "../../scripts/resolveSupabaseBranch";
+import { DEFERRED_ASSET_DIRS, deferredAssetPathPattern, sameOriginPathMatcher } from "../../scripts/deferredAssets";
+
+// Build-time version metadata for the footer "what changed" stamp. The app
+// version comes from package.json; the commit hash + build date are baked in at
+// build so a deployed bundle can show exactly which revision is live. The CI
+// commit-SHA env vars are preferred (Cloudflare Workers Builds / Pages, generic
+// CI) so the hash is correct even on a shallow checkout; we fall back to a local
+// `git` call for dev, and to "unknown" when neither is available.
+function readAppVersion(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function gitShortHash(): string {
+  const fromEnv =
+    process.env.WORKERS_CI_COMMIT_SHA ||
+    process.env.CF_PAGES_COMMIT_SHA ||
+    process.env.GIT_COMMIT_SHA ||
+    process.env.GITHUB_SHA;
+  if (fromEnv) return fromEnv.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short=7 HEAD", { cwd: __dirname }).toString().trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+// Branch the build came from. Drives the footer stamp's mode: `main` shows the
+// version + hash; any other branch shows branch + hash + commit time (mirrors
+// the _PREVIEW backend switch). CI branch env vars are preferred so it's right
+// on detached/shallow CI checkouts, falling back to local `git`, then "unknown".
+function gitBranch(): string {
+  const fromEnv =
+    process.env.WORKERS_CI_BRANCH || process.env.CF_PAGES_BRANCH || process.env.GITHUB_REF_NAME;
+  if (fromEnv) return fromEnv;
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", { cwd: __dirname }).toString().trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+// ISO timestamp of the build's commit (committer date), for the preview stamp.
+function gitCommitDate(): string {
+  try {
+    return execSync("git log -1 --format=%cI", { cwd: __dirname }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+// Build-time loader for external plugin npm packages (the AI coach). Candidate
+// package names default to the public coach and can be overridden via the
+// DOVE_PLUGIN_PACKAGES env var (comma-separated). Only packages actually
+// present in node_modules are imported, so a fresh clone that skips optional
+// deps still compiles to an empty plugin list. See src/plugins/.
+function externalPluginsLoader(candidates: string[]): Plugin {
+  const VIRTUAL = "virtual:external-plugins";
+  const RESOLVED = "\0" + VIRTUAL;
+  const isInstalled = (pkg: string) =>
+    [__dirname, path.resolve(__dirname, "../..")].some((root) =>
+      fs.existsSync(path.resolve(root, "node_modules", ...pkg.split("/"), "package.json")),
+    );
+  return {
+    name: "dove-external-plugins",
+    resolveId(id) {
+      return id === VIRTUAL ? RESOLVED : undefined;
+    },
+    load(id) {
+      if (id !== RESOLVED) return undefined;
+      const present = candidates.filter(isInstalled);
+      const imports = present.map((p, i) => `import p${i} from ${JSON.stringify(p)};`).join("\n");
+      const list = present.map((_, i) => `p${i}`).join(", ");
+      return `${imports}\nexport default [${list}];\n`;
+    },
+  };
+}
+
+// Heavy public assets kept OUT of the install-blocking precache.
+//
+// Workbox's precache install is all-or-nothing: one failed request rejects
+// `install`, the service worker is thrown away, and NOTHING is cached — the
+// partial entries are orphaned. With the bundled sample datalogs and logger
+// photos in there, install was a ~10 MB all-or-nothing download, so losing
+// signal partway through (a phone at a track, say) left the app with no offline
+// capability at all and no way to tell.
+//
+// These directories hold everything big that the app does not need in order to
+// boot: they are runtime-cached instead (see `runtimeCaching` below) and warmed
+// in the background once the worker is active (src/lib/offlineWarmup.ts), so
+// they still work offline without being able to take the whole install down.
+// One source of truth — DEFERRED_ASSET_DIRS (scripts/deferredAssets.ts) feeds
+// `globIgnores`, the runtime-cache route and the emitted manifest alike.
+const DEFERRED_ASSET_GLOBS = DEFERRED_ASSET_DIRS.map((dir) => `${dir}/**`);
+
+/** Where the client reads the list of deferred assets to warm. */
+const DEFERRED_MANIFEST_FILE = "offline-assets.json";
+
+/**
+ * Emit `offline-assets.json` — every file under the deferred directories, as a
+ * root-relative URL plus a content hash. Generated from the filesystem rather
+ * than hand-maintained so dropping a new logger photo into `public/loggers/` is
+ * picked up with no code change. Runs in `writeBundle`, which is before
+ * vite-plugin-pwa builds the service worker in `closeBundle`, so the manifest
+ * itself gets precached.
+ *
+ * The hash is the revision the runtime cache lacks: the deferred route is
+ * CacheFirst with no expiry, so the client re-fetches an asset only when its
+ * stored revision stops matching this manifest (src/lib/offlineWarmup.ts).
+ * Without it an updated sample log or logger photo never reached a device
+ * that had cached the old bytes.
+ */
+function deferredAssetManifest(dirs: readonly string[]): Plugin {
+  const publicDir = path.resolve(__dirname, "public");
+  type Entry = { url: string; revision: string };
+  const walk = (dir: string, out: Entry[]) => {
+    if (!fs.existsSync(dir)) return out;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, out);
+      else
+        out.push({
+          url: "/" + path.relative(publicDir, full).split(path.sep).join("/"),
+          revision: createHash("sha256").update(fs.readFileSync(full)).digest("hex").slice(0, 16),
+        });
+    }
+    return out;
+  };
+  return {
+    name: "dove-deferred-assets",
+    apply: "build",
+    writeBundle(options) {
+      const assets = dirs
+        .flatMap((dir) => walk(path.join(publicDir, dir), []))
+        .sort((a, b) => a.url.localeCompare(b.url));
+      const outDir = options.dir ?? path.resolve(__dirname, "dist");
+      fs.writeFileSync(
+        path.join(outDir, DEFERRED_MANIFEST_FILE),
+        JSON.stringify({ assets }, null, 2) + "\n",
+      );
+    },
+  };
+}
+
+const PUBLIC_BACKEND_FALLBACKS = {
+  // No public backend is baked in — supply your own Supabase credentials via
+  // VITE_*/HTT_* env (or a committed `.env`) to enable admin/cloud features.
+  // Left blank, the app runs fully offline-first with no backend wired up.
+  VITE_SUPABASE_PROJECT_ID: "",
+  VITE_SUPABASE_PUBLISHABLE_KEY: "",
+  VITE_SUPABASE_URL: "",
+  // Admin + cloud default OFF in fallbacks. The production deploy enables them
+  // via env injection ("true") / committed `.env` / HTT_* build
+  // secrets. A new contributor cloning the repo without a .env must see the
+  // public, offline-first app — NOT the admin UI or live cloud-sync pointing at
+  // a backend they don't control. Anyone who hosts that build would otherwise
+  // expose admin surfaces and account features for an upstream backend.
+  VITE_ENABLE_ADMIN: "false",
+  // Cloud auth + sync (public user accounts, Google sign-in, Cloud Sync
+  // panels). Defaulted OFF for the same reason — a fresh build is offline-only
+  // until the operator explicitly opts in via VITE_*/HTT_* env. The production
+  // deploy sets this to "true".
+  VITE_ENABLE_CLOUD: "false",
+  // The web app is the default target; the Tauri/Android build sets this to
+  // "true" (VITE_IS_NATIVE / HTT_IS_NATIVE) so the bundle skips the service
+  // worker, hides in-app purchases (web-only billing for Google Play), and
+  // routes external links through the system browser. See lib/platform.ts.
+  VITE_IS_NATIVE: "false",
+} as const;
+
+// https://vitejs.dev/config/
+export default defineConfig(async ({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const productProfile = mode === "full"
+    || (env.VITE_PRODUCT_PROFILE || process.env.VITE_PRODUCT_PROFILE) === "full"
+    ? "full"
+    : "sim";
+
+  // Some secret stores reject the `VITE_` prefix (those are public, build-time
+  // values by Vite convention). To let contributors stash the backend wiring in
+  // workspace build secrets *without* committing a `.env`, we also accept a
+  // parallel `HTT_` prefix and copy it into the VITE_* names at build time.
+  // Precedence: VITE_* > HTT_* > public fallback.
+  //
+  // NOTE: Vite's loadEnv() only reads .env files — it does NOT include
+  // process.env. Some hosts inject build secrets as real env vars, so we must
+  // check process.env explicitly for the HTT_* (and VITE_*) fallbacks to work
+  // when there's no committed .env file.
+  //
+  // PREVIEW BACKEND: Cloudflare Workers Builds sets WORKERS_CI_BRANCH on every
+  // build (Pages sets CF_PAGES_BRANCH). On any non-production branch we prefer
+  // parallel `*_PREVIEW` build variables (VITE_*_PREVIEW / HTT_*_PREVIEW), so a
+  // beta/preview deployment bakes in the Supabase **preview-branch** database
+  // instead of production. Production (`main`) builds and local dev never see
+  // the _PREVIEW values, so they're untouched. The creds are build-time-baked,
+  // not runtime — picking them here is the only place to switch backends.
+  // Backend tier is chosen by the build's git branch:
+  //   main          → base build vars (production database)
+  //   BETA          → static `*_PREVIEW` vars (the one shared beta database)
+  //   any other     → that branch's OWN Supabase preview-branch DB (resolved
+  //                   below via the Management API), falling back to the
+  //                   `*_PREVIEW`/beta creds when no such branch exists.
+  // `_PREVIEW` is preferred for BETA *and* feature branches; only feature
+  // branches additionally consult the resolver (BETA must never be hijacked onto
+  // a per-branch DB — it's the shared integration database).
+  const ciBranch = process.env.WORKERS_CI_BRANCH || process.env.CF_PAGES_BRANCH;
+  const PROD_BRANCH = "main";
+  const BETA_BRANCH = "BETA";
+  const isPreviewBuild = !!ciBranch && ciBranch !== PROD_BRANCH;
+  const isFeatureBranch = isPreviewBuild && ciBranch !== BETA_BRANCH;
+
+  const pick = (viteKey: string, httKey: string, fallback: string, override?: string) => {
+    // A resolved per-branch Supabase preview DB (feature branches only) wins over
+    // everything — it's the whole point: this branch's own database.
+    if (override) return override;
+    if (isPreviewBuild) {
+      const previewVal =
+        env[`${viteKey}_PREVIEW`] ||
+        process.env[`${viteKey}_PREVIEW`] ||
+        env[`${httKey}_PREVIEW`] ||
+        process.env[`${httKey}_PREVIEW`];
+      if (previewVal) return previewVal;
+    }
+    return env[viteKey] || process.env[viteKey] || env[httKey] || process.env[httKey] || fallback;
+  };
+
+  // DYNAMIC PER-BRANCH BACKEND — FEATURE BRANCHES ONLY (never main, never BETA).
+  // Ask the Supabase Management API whether a preview-branch database exists for
+  // THIS git branch and, if so, bake its creds in; otherwise fall back to the
+  // `*_PREVIEW`/beta chain via pick(). Requires a SUPABASE_ACCESS_TOKEN build
+  // secret; without it (or when Supabase made no branch) `branchBackend` stays
+  // null. The resolver never throws and times out fast, so it can't break a deploy.
+  const prodProjectRef =
+    env.VITE_SUPABASE_PROJECT_ID ||
+    process.env.VITE_SUPABASE_PROJECT_ID ||
+    env.HTT_SUPABASE_PROJECT_ID ||
+    process.env.HTT_SUPABASE_PROJECT_ID ||
+    "";
+  const branchBackend = isFeatureBranch
+    ? await resolveBranchBackend({
+        gitBranch: ciBranch ?? "",
+        prodProjectRef,
+        accessToken: process.env.SUPABASE_ACCESS_TOKEN || env.SUPABASE_ACCESS_TOKEN || "",
+      })
+    : null;
+
+  // Resolve the URL once and log which database this build baked in, so a deploy's
+  // logs always state plainly which backend (and why) it points at.
+  const supabaseUrl = pick(
+    "VITE_SUPABASE_URL", "HTT_SUPABASE_URL", PUBLIC_BACKEND_FALLBACKS.VITE_SUPABASE_URL, branchBackend?.url,
+  );
+  const backendTier = !ciBranch
+    ? "local/dev (base vars)"
+    : ciBranch === PROD_BRANCH
+      ? "main (base/production vars)"
+      : ciBranch === BETA_BRANCH
+        ? "BETA (*_PREVIEW vars)"
+        : branchBackend
+          ? `feature "${ciBranch}" (branch DB ${branchBackend.projectId})`
+          : `feature "${ciBranch}" (no branch DB → *_PREVIEW fallback)`;
+  console.log(`[backend] Supabase URL baked: ${supabaseUrl || "(none — offline-only build)"} — ${backendTier}`);
+
+  const appVersion = readAppVersion();
+  const gitHash = gitShortHash();
+  const buildDate = new Date().toISOString();
+  const branch = gitBranch();
+  const commitDate = gitCommitDate();
+
+  const DEFAULT_PLUGIN_PACKAGES = "@perchwerks/eye-in-the-sky";
+  const pluginPackages = (env.DOVE_PLUGIN_PACKAGES || DEFAULT_PLUGIN_PACKAGES)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return {
+    server: {
+      host: "::",
+      port: 8080,
+    },
+    define: {
+      "__LAPWING_PRODUCT_PROFILE__": JSON.stringify(productProfile),
+      "import.meta.env.VITE_SUPABASE_PROJECT_ID": JSON.stringify(
+        pick("VITE_SUPABASE_PROJECT_ID", "HTT_SUPABASE_PROJECT_ID", PUBLIC_BACKEND_FALLBACKS.VITE_SUPABASE_PROJECT_ID, branchBackend?.projectId),
+      ),
+      "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(
+        pick("VITE_SUPABASE_PUBLISHABLE_KEY", "HTT_SUPABASE_PUBLISHABLE_KEY", PUBLIC_BACKEND_FALLBACKS.VITE_SUPABASE_PUBLISHABLE_KEY, branchBackend?.anonKey),
+      ),
+      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(supabaseUrl),
+      "import.meta.env.VITE_ENABLE_ADMIN": JSON.stringify(
+        pick("VITE_ENABLE_ADMIN", "HTT_ENABLE_ADMIN", PUBLIC_BACKEND_FALLBACKS.VITE_ENABLE_ADMIN),
+      ),
+      "import.meta.env.VITE_ENABLE_CLOUD": JSON.stringify(
+        pick("VITE_ENABLE_CLOUD", "HTT_ENABLE_CLOUD", PUBLIC_BACKEND_FALLBACKS.VITE_ENABLE_CLOUD),
+      ),
+      "import.meta.env.VITE_IS_NATIVE": JSON.stringify(
+        pick("VITE_IS_NATIVE", "HTT_IS_NATIVE", PUBLIC_BACKEND_FALLBACKS.VITE_IS_NATIVE),
+      ),
+      // Anonymous usage stats (plan 0030). Empty = no analytics in the build.
+      // Goes through pick() so a `_PREVIEW` variant can point beta/preview
+      // deploys at a separate PostHog project; otherwise they share the
+      // production project and are told apart by the `app_channel` property.
+      "import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(pick("VITE_POSTHOG_KEY", "HTT_POSTHOG_KEY", "")),
+      "import.meta.env.VITE_POSTHOG_HOST": JSON.stringify(pick("VITE_POSTHOG_HOST", "HTT_POSTHOG_HOST", "")),
+      "import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion),
+      "import.meta.env.VITE_GIT_HASH": JSON.stringify(gitHash),
+      "import.meta.env.VITE_BUILD_DATE": JSON.stringify(buildDate),
+      "import.meta.env.VITE_GIT_BRANCH": JSON.stringify(branch),
+      "import.meta.env.VITE_GIT_COMMIT_DATE": JSON.stringify(commitDate),
+    },
+    plugins: [
+      react(),
+      externalPluginsLoader(pluginPackages),
+      // Emit a tiny version.json next to the bundle so a running tab can detect a
+      // newer deploy without depending on the service worker's own diff-detection
+      // (see src/lib/versionCheck.ts). It carries the same build constants baked
+      // into buildInfo, so the deployed copy is by definition "latest".
+      {
+        name: "emit-version-json",
+        generateBundle() {
+          this.emitFile({
+            type: "asset",
+            fileName: "version.json",
+            source: JSON.stringify(
+              { version: appVersion, commit: gitHash, buildDate, branch, commitDate },
+              null,
+              2,
+            ),
+          });
+        },
+      } satisfies Plugin,
+      deferredAssetManifest(DEFERRED_ASSET_DIRS),
+      VitePWA({
+        filename: "service-worker.js",
+        registerType: "autoUpdate",
+        devOptions: {
+          enabled: false,
+        },
+        // Only what `globPatterns` below does NOT already match. Listing an
+        // asset in both precached it twice — that duplicated the 1.25 MB sample
+        // .nmea in every install.
+        includeAssets: ["robots.txt"],
+        manifest: {
+          name: "LapWing - Motorsport Data Viewer",
+          short_name: "LapWing",
+          description: "Open source motorsport data acquisition and analytics",
+          // LapWing brand `lapwing-dark` canvas (perchwerks-style tokens).
+          theme_color: "#170A35",
+          background_color: "#170A35",
+          display: "standalone",
+          start_url: "/",
+          icons: [
+            {
+              src: "pwa-192x192.png",
+              sizes: "192x192",
+              type: "image/png",
+            },
+            {
+              src: "pwa-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+            },
+            {
+              // Full-bleed plate with the mark inside the 80% safe zone, so
+              // Android's adaptive-icon mask never clips the bird.
+              src: "pwa-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
+            },
+            {
+              src: "apple-touch-icon-180x180.png",
+              sizes: "180x180",
+              type: "image/png",
+              purpose: "apple touch icon" as string,
+            },
+          ],
+        },
+        workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
+          // woff2 only: every SW-capable browser supports it, so the legacy
+          // .woff fallbacks @fontsource emits would just be dead precache weight.
+          // mjs: the vendored firmware-simulator module (public/sim/) — precached
+          // so the /simulator page works offline like everything else.
+          globPatterns: ["**/*.{js,mjs,css,html,ico,png,svg,woff2,json,wasm}"],
+          // version.json must never be precached — it's the freshness signal the
+          // running tab fetches uncached to detect a newer deploy (see versionCheck.ts).
+          // The deferred directories are excluded so a slow or dropped connection
+          // can't abort the whole install; they are runtime-cached and warmed
+          // afterwards instead. See DEFERRED_ASSET_DIRS (scripts/deferredAssets.ts).
+          // og-image.png is only ever fetched by link-preview crawlers — no reason
+          // to ship it in every offline install.
+          // vendor-posthog: only analytics users ever load it (plan 0030), so it is
+          // fetched on demand instead of weighing every offline install.
+          globIgnores: ["**/tracks.zip", "version.json", "og-image.png", "**/vendor-posthog-*.js", ...DEFERRED_ASSET_GLOBS],
+          navigateFallbackDenylist: [/^\/~oauth/],
+          runtimeCaching: [
+            {
+              // The heavy assets held out of the precache (see
+              // DEFERRED_ASSET_DIRS). CacheFirst so that once warmed they are
+              // served offline exactly as if precached — the difference is only
+              // that failing to fetch one can no longer abort the install.
+              // workbox-build serializes this callback into the worker, where
+              // nothing from this module's scope exists, so the matcher bakes the
+              // pattern derived from DEFERRED_ASSET_DIRS into its source text.
+              // `sameOrigin` is supplied by Workbox's route matcher.
+              urlPattern: sameOriginPathMatcher(deferredAssetPathPattern(DEFERRED_ASSET_DIRS)),
+              handler: "CacheFirst",
+              options: {
+                // No ExpirationPlugin here on purpose: the warm-up writes these
+                // entries straight into the cache, so they'd be absent from the
+                // plugin's own index. Freshness comes from revisions instead:
+                // offline-assets.json carries a content hash per file and the
+                // warm-up replaces any entry not stamped with the current one
+                // (and prunes files the build no longer ships).
+                cacheName: "app-deferred-assets",
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: ({ request }) => request.mode === "navigate",
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "app-html",
+                networkTimeoutSeconds: 3,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/.*\.basemaps\.cartocdn\.com\/.*/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "map-tiles-carto",
+                expiration: {
+                  maxEntries: 500,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/server\.arcgisonline\.com\/.*/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "map-tiles-esri",
+                expiration: {
+                  maxEntries: 500,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              // Esri Wayback historical satellite imagery (date-picker tiles).
+              urlPattern: /^https:\/\/wayback\.maptiles\.arcgis\.com\/.*/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "map-tiles-wayback",
+                expiration: {
+                  maxEntries: 500,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        "@product/gopro-import": productProfile === "full"
+          ? path.resolve(__dirname, "./src/lib/gopro/goproImport.ts")
+          : path.resolve(__dirname, "./src/product/disabledGoProImport.ts"),
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    build: {
+      manifest: true,
+      // Split heavy vendor libs into their own chunks so they cache
+      // independently across deploys. Each entry below becomes a separate
+      // file in /dist/assets; a deploy that only touches app code lets users
+      // re-use the existing vendor chunks instead of re-downloading them.
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
+            "vendor-query": ["@tanstack/react-query"],
+            "vendor-i18n": ["i18next", "react-i18next"],
+            "vendor-leaflet": ["leaflet"],
+            "vendor-supabase": ["@supabase/supabase-js"],
+            "vendor-markdown": ["react-markdown", "remark-gfm"],
+            // Dynamic-imported by lib/analytics.ts only when analytics starts;
+            // a named chunk keeps it cache-stable across deploys. Keyless builds
+            // drop the import entirely, so they get no (empty) chunk either.
+            ...(pick("VITE_POSTHOG_KEY", "HTT_POSTHOG_KEY", "") ? { "vendor-posthog": ["posthog-js"] } : {}),
+            // Radix is many small packages; group them into one chunk.
+            "vendor-radix": [
+              "@radix-ui/react-collapsible",
+              "@radix-ui/react-dialog",
+              "@radix-ui/react-label",
+              "@radix-ui/react-select",
+              "@radix-ui/react-separator",
+              "@radix-ui/react-slider",
+              "@radix-ui/react-slot",
+              "@radix-ui/react-switch",
+              "@radix-ui/react-tabs",
+              "@radix-ui/react-toast",
+              "@radix-ui/react-tooltip",
+            ],
+          },
+        },
+      },
+    },
+  };
+});

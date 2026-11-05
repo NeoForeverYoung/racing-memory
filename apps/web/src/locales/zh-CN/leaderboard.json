@@ -1,0 +1,36 @@
+{
+  "title": "排行榜",
+  "subtitle": "按赛道、路线和发动机组别查看社区最快圈速。",
+  "empty": "还没有提交记录 :(",
+  "loadFailed": "无法加载排行榜。",
+  "loading": "正在加载排行榜…",
+  "showTop": "显示前几名",
+  "viewProfile": "查看车手资料",
+  "all": "全部",
+  "groupByWeight": "按重量分组",
+  "bubbles": {
+    "engines_one": "{{count}} 种发动机",
+    "engines_other": "{{count}} 种发动机",
+    "records_one": "{{count}} 条记录",
+    "records_other": "{{count}} 条记录",
+    "fastest": "最快：{{time}}"
+  },
+  "unclassifiedEngine": "未分类",
+  "weightLabel": "{{weight}} {{unit}}",
+  "openGroup": "查看圈速",
+  "loadTopSession_one": "将最快圈加载为单个赛段",
+  "loadTopSession_other": "将前 {{count}} 个最快圈加载为单个赛段",
+  "loadAllSession": "将所有圈速加载为单个赛段",
+  "buildFailed": "无法生成该赛段。",
+  "readOnly": {
+    "banner": "排行榜只读视图",
+    "exit": "退出",
+    "descriptor": "{{course}} · {{engine}}",
+    "descriptorWeight": "{{course}} · {{engine}} · {{weight}}"
+  },
+  "share": {
+    "loading": "正在加载共享赛段…",
+    "notFound": "此共享链接不存在或已设为私密。",
+    "loadFailed": "无法加载共享赛段。"
+  }
+}

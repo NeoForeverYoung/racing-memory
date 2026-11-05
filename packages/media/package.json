@@ -1,0 +1,16 @@
+{
+  "name": "@lapwing/media",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "dependencies": {
+    "@lapwing/game-adapter-kit": "workspace:*",
+    "@lapwing/telemetry-core": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory-story": "./src/memoryStory.ts",
+    "./recorder": "./src/recorder.ts",
+    "./video-timeline": "./src/videoTimeline.ts"
+  }
+}

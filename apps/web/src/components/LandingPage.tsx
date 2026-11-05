@@ -1,0 +1,331 @@
+import { lazy, Suspense, useState, type ReactNode } from "react";
+import {
+  Shield,
+  Play,
+  FileText,
+  Cpu,
+  FolderOpen,
+  Map,
+  Bluetooth,
+  Trophy,
+  WifiOff,
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
+import { SiteHeader } from "@/components/SiteHeader";
+import { BrandLogo } from "@/components/BrandLogo";
+import { FileImport } from "@/components/FileImport";
+import { ActionTile } from "@/components/ActionTile";
+import { LatestUpdates } from "@/components/LatestUpdates";
+import { BuildLoggerDialog } from "@/components/BuildLoggerDialog";
+import { TrackEditor } from "@/components/TrackEditor";
+import { LocalWeatherDialog } from "@/components/LocalWeatherDialog";
+import { BrowserCompatDialog } from "@/components/BrowserCompatDialog";
+import { ContactDialog } from "@/components/ContactDialog";
+import { CreditsDialog } from "@/components/CreditsDialog";
+import { PluginMount } from "@/plugins/PluginMount";
+import { MountSlot } from "@/plugins/mounts";
+import { useAuth } from "@/contexts/AuthContext";
+import { buildInfo, formatBuildLabel, commitUrl, isPreviewBuild } from "@/lib/buildInfo";
+import { interceptExternal, isNativeApp } from "@/lib/platform";
+import { cn } from "@/lib/utils";
+import type { ParsedData } from "@/types/racing";
+import { hardwareFeaturesEnabled } from "@/productProfile";
+
+const LoggerDownload = hardwareFeaturesEnabled
+  ? lazy(() => import("@/components/LoggerDownload").then((module) => ({ default: module.LoggerDownload })))
+  : null;
+
+interface LandingPageProps {
+  onDataLoaded: (data: ParsedData, fileName?: string) => void;
+  onOpenFileManager: () => void;
+  /** Opens the file-manager drawer straight to the Profile (account) tab. */
+  onOpenProfile: () => void;
+  autoSave: boolean;
+  autoSaveFile: (name: string, blob: Blob) => Promise<void>;
+  onLoadSample: () => void;
+  isLoadingSample: boolean;
+  /** When false, the sample log is hidden everywhere — including this tile. */
+  showSampleFiles: boolean;
+  enableAdmin: boolean;
+  enableCloud: boolean;
+  /** The settings modal (trigger + dialog), rendered in the header. */
+  settingsButton: ReactNode;
+}
+
+/**
+ * The pre-data-load home screen shown by Index.tsx when no telemetry file is
+ * loaded. The layout is deliberately simple: a large drag-and-drop dropzone
+ * as the primary action, then a grid of big, single-purpose action tiles for
+ * everything else (browse, sample, BLE download, track manager, hardware).
+ * Reference dialogs (supported files, about, weather, browser compat, contact)
+ * and resource links live below.
+ *
+ * Index.tsx owns the surrounding providers (DeviceProvider, etc.) and the
+ * FileManagerDrawer, which the "Browse Saved Files" tile opens via
+ * `onOpenFileManager`.
+ */
+export function LandingPage({
+  onDataLoaded,
+  onOpenFileManager,
+  onOpenProfile,
+  autoSave,
+  autoSaveFile,
+  onLoadSample,
+  isLoadingSample,
+  showSampleFiles,
+  enableAdmin,
+  enableCloud,
+  settingsButton,
+}: LandingPageProps) {
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+  const { t } = useTranslation(["landing", "common"]);
+
+  // On the native (Tauri/Android) shell the user has already installed the app,
+  // so the marketing surfaces (hero pitch, GitHub/sponsor links) just add
+  // noise — hide them. The DIY-logger tile stays (it's genuinely useful).
+  const native = isNativeApp();
+
+  const [buildDialogOpen, setBuildDialogOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col safe-area-x">
+      <SiteHeader settingsButton={settingsButton} enableCloud={enableCloud} onOpenProfile={onOpenProfile} />
+      <BuildLoggerDialog open={buildDialogOpen} onOpenChange={setBuildDialogOpen} />
+
+      <main className="flex-1 px-6 py-10">
+        <div className="mx-auto w-full max-w-4xl space-y-10">
+          {/* Hero — pure marketing, so it's dropped on the native shell where
+              the user has already chosen to install the app. */}
+          {!native && (
+            <section className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/15 via-card to-card px-6 py-8 sm:px-10 sm:py-10">
+              {/* The bird as a watermark, flying off the lower-right edge the way
+                  the mark always faces. Decorative only. */}
+              <span aria-hidden className="pointer-events-none absolute -bottom-8 -right-12 opacity-[0.08] sm:-right-6">
+                <BrandLogo className="h-40 sm:h-56" />
+              </span>
+              <div className="relative max-w-xl space-y-4">
+                <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  <WifiOff className="h-3.5 w-3.5" />
+                  {t("landing:hero.offlineNote")}
+                </span>
+                <h2 className="font-brand text-3xl font-extrabold italic leading-tight tracking-tight text-foreground sm:text-4xl">
+                  {t("landing:hero.title")}
+                </h2>
+                <p className="text-sm text-muted-foreground sm:text-base">
+                  {t("landing:hero.subtitle")}
+                </p>
+              </div>
+            </section>
+          )}
+
+          {/* Primary action: a 50/50 split — most users download straight off a
+              logger, so it gets equal billing with drag & drop / click-to-browse. */}
+          <div className={cn("grid grid-cols-1 gap-4", hardwareFeaturesEnabled && "md:grid-cols-2 md:items-stretch")}>
+            {LoggerDownload && (
+              <Suspense fallback={null}>
+                <LoggerDownload
+                  onDataLoaded={onDataLoaded}
+                  autoSave={autoSave}
+                  autoSaveFile={autoSaveFile}
+                  renderTrigger={({ onOpen }) => (
+                    <button
+                      type="button"
+                      onClick={onOpen}
+                      className="flex h-full cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-card/50 p-10 text-center transition-colors hover:border-primary/50 hover:bg-card"
+                    >
+                      <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Bluetooth className="h-7 w-7" />
+                      </span>
+                      <span className="text-xl font-semibold text-foreground">
+                        {t("landing:tiles.logger.title")}
+                      </span>
+                      <span className="max-w-md text-sm text-muted-foreground">
+                        {t("landing:tiles.logger.description")}
+                      </span>
+                    </button>
+                  )}
+                />
+              </Suspense>
+            )}
+            <FileImport onDataLoaded={onDataLoaded} autoSave={autoSave} autoSaveFile={autoSaveFile} />
+          </div>
+
+          {/* Secondary actions — big, single-purpose tiles */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {showSampleFiles && (
+              <ActionTile
+                icon={Play}
+                title={t("landing:tiles.sample.title")}
+                description={isLoadingSample ? t("common:actions.loading") : t("landing:tiles.sample.description")}
+                onClick={onLoadSample}
+                disabled={isLoadingSample}
+                spinning={isLoadingSample}
+                featured
+              />
+            )}
+
+            <ActionTile
+              icon={FolderOpen}
+              title={t("landing:tiles.browse.title")}
+              description={t("landing:tiles.browse.description")}
+              onClick={onOpenFileManager}
+            />
+
+            {/* Track manager — create/draw tracks & courses without a datalog. */}
+            <TrackEditor
+              triggerButton={
+                <ActionTile
+                  icon={Map}
+                  title={t("landing:tiles.tracks.title")}
+                  description={t("landing:tiles.tracks.description")}
+                  badge={enableCloud ? t("landing:tiles.tracks.badge") : undefined}
+                />
+              }
+            />
+
+            {/* Public leaderboards — only meaningful with the cloud backend. */}
+            {enableCloud && (
+              <ActionTile
+                icon={Trophy}
+                title={t("landing:tiles.leaderboards.title")}
+                description={t("landing:tiles.leaderboards.description")}
+                onClick={() => navigate('/leaderboards')}
+              />
+            )}
+
+            <ActionTile
+              icon={Cpu}
+              title={t("landing:tiles.build.title")}
+              description={t("landing:tiles.build.description")}
+              onClick={() => setBuildDialogOpen(true)}
+            />
+
+            {/* Plugin-contributed landing tiles (e.g. the Tools plugin). Renders
+                nothing when no plugin targets the slot, so the grid is unchanged
+                in a plugin-absent build. */}
+            <PluginMount slot={MountSlot.Landing} ctx={{}} />
+          </div>
+
+          {/* Latest updates — two tap-through teasers from the /updates blog
+              (newest "web update" post + newest other news). Cloud-gated like
+              the blog routes; the component hides itself offline. */}
+          {enableCloud && <LatestUpdates />}
+
+          {/* Reference dialogs — Credits sits to the left of Browser Compatibility. */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <CreditsDialog />
+            <BrowserCompatDialog />
+            <span className="inline-flex">
+              <LocalWeatherDialog />
+            </span>
+            <ContactDialog variant="header" />
+          </div>
+
+          {enableAdmin && isAdmin && (
+            <div className="flex items-center justify-center gap-6 flex-wrap">
+              <button
+                onClick={() => navigate('/admin')}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              >
+                <Shield className="w-3 h-3" />
+                {t("landing:links.admin")}
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <footer
+        className={cn(
+          "border-t px-6 py-4",
+          isPreviewBuild() ? "border-warning/60 bg-warning/10" : "border-border",
+        )}
+      >
+        {/* Operated-by + build stamp read as one solid block. On the stable
+            (non-preview) build, Privacy flanks it on the left and Terms on the
+            right; the preview build keeps the block centered + the warning. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
+          {!isPreviewBuild() && (
+            <Link
+              to="/privacy"
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+            >
+              <Shield className="w-3 h-3" />
+              {t("landing:links.privacy")}
+            </Link>
+          )}
+
+          <div>
+            {/* The parent-company line: the shared bird mark ties LapWing back
+                to PerchWerks, and the link leads to the company site. */}
+            <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <span aria-hidden>
+                <BrandLogo className="h-2.5 text-muted-foreground" />
+              </span>
+              <span>
+                <Trans
+                  ns="landing"
+                  i18nKey="footer.productOf"
+                  components={{
+                    // Not `link`: that is a void HTML tag, so the Trans parser
+                    // would render an empty anchor.
+                    site: (
+                      <a
+                        href="https://perchwerks.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => interceptExternal(e, "https://perchwerks.com")}
+                        className="font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                      />
+                    ),
+                  }}
+                />
+              </span>
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-center text-[11px]",
+                isPreviewBuild() ? "font-semibold text-warning" : "text-muted-foreground/60",
+              )}
+              title={buildInfo.buildDate ? `Built ${new Date(buildInfo.buildDate).toLocaleString()}` : undefined}
+            >
+              {commitUrl() ? (
+                <a
+                  href={commitUrl()!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => interceptExternal(e, commitUrl()!)}
+                  className={cn(
+                    "underline-offset-4 transition-colors hover:underline",
+                    isPreviewBuild() ? "hover:text-warning/80" : "hover:text-muted-foreground",
+                  )}
+                >
+                  {formatBuildLabel()}
+                </a>
+              ) : (
+                formatBuildLabel()
+              )}
+            </p>
+          </div>
+
+          {!isPreviewBuild() && (
+            <Link
+              to="/terms"
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+            >
+              <FileText className="w-3 h-3" />
+              {t("landing:links.terms")}
+            </Link>
+          )}
+        </div>
+        {isPreviewBuild() && (
+          <p className="mx-auto mt-2 max-w-2xl text-center text-[11px] leading-relaxed text-warning">
+            <Trans ns="landing" i18nKey="footer.previewWarning" components={{ strong: <strong /> }} />
+          </p>
+        )}
+      </footer>
+    </div>
+  );
+}

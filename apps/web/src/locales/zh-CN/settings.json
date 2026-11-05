@@ -1,0 +1,113 @@
+{
+  "title": "设置",
+  "theme": {
+    "heading": "主题",
+    "darkMode": "深色模式"
+  },
+  "fileStorage": {
+    "heading": "文件存储",
+    "autoSave": "自动将导入/上传的文件保存到设备",
+    "autoSaveHint": "自动将文件存入设备，以便稍后访问",
+    "showSamples": "显示示例文件",
+    "showSamplesHint": "在文件浏览器中保留内置的示例日志",
+    "showSamplesLocked": "添加你自己的文件后即可隐藏示例"
+  },
+  "speedUnit": {
+    "heading": "速度单位",
+    "label": "以千米/小时显示速度"
+  },
+  "distanceUnit": {
+    "heading": "距离单位",
+    "label": "赛道长度、单圈距离与图表距离轴"
+  },
+  "weatherUnits": {
+    "heading": "天气单位",
+    "label": "温度、风速、气压与海拔",
+    "hint": "英制 = °F、mph、inHg、ft · 公制 = °C、km/h、hPa、m",
+    "imperialShort": "英制",
+    "metricShort": "公制"
+  },
+  "gforceSmoothing": {
+    "heading": "G 值平滑",
+    "label": "对计算得出的 G 值进行降噪",
+    "strength": "平滑强度",
+    "none": "无",
+    "max": "最大"
+  },
+  "gforceSource": {
+    "heading": "G 值来源",
+    "label": "简易图表的 G 值数据来源",
+    "hint": "GPS = 根据速度/航向推算，HW = 硬件加速度计"
+  },
+  "lapDelta": {
+    "heading": "圈速差",
+    "label": "相对参考圈的差距计算方式",
+    "hint": "位置法会将你的行驶路线投影到参考圈上（不易受走线和 GPS 采样率差异影响）；距离法是旧版累计距离算法",
+    "distance": "距离",
+    "position": "位置"
+  },
+  "chartScale": {
+    "heading": "图表刻度",
+    "label": "遥测图表 X 轴",
+    "hint": "距离轴按赛道位置绘制，使各圈在每个弯角对齐；时间轴按单圈已用时间绘制",
+    "time": "时间",
+    "distance": "距离"
+  },
+  "braking": {
+    "heading": "刹车区检测",
+    "experimental": "实验性功能",
+    "intro": "调整用于在地图上识别刹车区的检测算法。",
+    "entryThreshold": "进入阈值",
+    "exitThreshold": "退出阈值",
+    "minDuration": "最短持续时间",
+    "smoothing": "平滑",
+    "zoneWidth": "区域宽度",
+    "graphSmoothing": "图表平滑",
+    "graphSmoothingUnit": "{{count}} 个点",
+    "graphSmoothingHint": "“刹车 %”图表的 Savitzky-Golay 滤波窗口。数值越大越平滑。",
+    "brakeMaxLabel": "刹车 100% = ",
+    "brakeMaxHint": "映射为 100% 刹车的减速 G 值。数值越低越灵敏。",
+    "zoneColor": "区域颜色",
+    "colors": {
+      "blue": "蓝色",
+      "orange": "橙色",
+      "purple": "紫色",
+      "pink": "粉色",
+      "cyan": "青色",
+      "yellow": "黄色"
+    }
+  },
+  "fieldVisibility": {
+    "heading": "默认字段可见性",
+    "intro": "选择加载文件时默认显示的数据字段。隐藏字段仍可手动启用。",
+    "hidden": "隐藏",
+    "visible": "显示"
+  },
+  "appUpdate": {
+    "heading": "应用更新",
+    "label": "强制更新并清除缓存",
+    "hint": "清除缓存的应用文件并重新加载最新版本。已保存的场次和车库数据不会受影响。"
+  },
+  "privacy": {
+    "heading": "隐私",
+    "usageStats": "发送匿名使用统计",
+    "usageStatsHint": "帮助我们了解 LapWing 的使用人数和停留时长。不使用 Cookie，且绝不会发送遥测数据、文件或位置数据。遵循“请勿追踪”和“全局隐私控制”设置。"
+  },
+  "mychron": {
+    "heading": "MyChron",
+    "ssidPrefix": "Wi-Fi 名称前缀",
+    "ssidPrefixHint": "MyChron Wi-Fi 名称的开头部分。下载时，系统 Wi-Fi 选择器只会列出以此前缀开头的网络。区分大小写——仅当记录仪广播的名称不同时才需修改。"
+  },
+  "offline": {
+    "heading": "离线就绪状态",
+    "prepare": "完成下载",
+    "progress": "已缓存 {{cached}}/{{total}} 个附加资源（{{percent}}%）",
+    "state": {
+      "ready": "已就绪——此设备无需网络信号即可打开应用和内置示例。",
+      "preparing": "应用本身已可离线打开，仍在下载附加资源（示例数据和记录仪图片）。",
+      "not-ready": "尚未缓存。请保持此页面联网打开片刻，或立即完成下载。",
+      "unsupported": "此浏览器不支持离线缓存。",
+      "native": "已内置于应用中——无需网络信号即可使用全部功能。"
+    }
+  }
+}

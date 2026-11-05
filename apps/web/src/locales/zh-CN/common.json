@@ -1,0 +1,44 @@
+{
+  "appName": "LapWing",
+  "actions": {
+    "signOut": "退出登录",
+    "profile": "个人资料",
+    "backToHome": "返回首页",
+    "sponsor": "赞助",
+    "loading": "正在加载…",
+    "reset": "恢复默认设置",
+    "update": "更新",
+    "updating": "正在更新…"
+  },
+  "language": {
+    "heading": "语言",
+    "label": "显示语言"
+  },
+  "updateToast": {
+    "title": "更新已就绪",
+    "description": "刷新以清除旧的缓存文件并加载最新版本。",
+    "refresh": "刷新",
+    "later": "稍后",
+    "updating": "正在更新…",
+    "updatingBody": "正在获取最新版本，请稍候。",
+    "updated": "你正在使用最新版本。"
+  },
+  "usageStatsNotice": {
+    "title": "LapWing 现已开始统计匿名访问量",
+    "description": "仅统计页面浏览量，不使用 Cookie，也不收集任何场次数据。可随时在“设置 → 隐私”中关闭。"
+  },
+  "install": {
+    "title": "安装 LapWing",
+    "body": "在赛道也可离线使用，无需网络信号。",
+    "action": "安装",
+    "dismiss": "暂不",
+    "iosWhy": "在 iPhone 和 iPad 上，Safari 会在约一周后删除未安装网站的离线数据。将 LapWing 添加到主屏幕，即可在不同比赛周末之间保留应用和已保存的场次。",
+    "iosStepShare": "轻点 Safari 工具栏中的“共享”",
+    "iosStepAdd": "选择“添加到主屏幕”",
+    "iosStepOpen": "然后趁仍有网络信号时，从新图标打开一次 LapWing，以便保存应用供离线使用。"
+  },
+  "notFound": {
+    "title": "哎呀！页面不存在",
+    "home": "返回首页"
+  }
+}

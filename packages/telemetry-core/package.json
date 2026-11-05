@@ -1,0 +1,18 @@
+{
+  "name": "@lapwing/telemetry-core",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./canonical": "./src/canonical.ts",
+    "./gforce": "./src/gforceCalculation.ts",
+    "./gps-quality": "./src/gpsQualityFilter.ts",
+    "./job-manifest": "./src/jobManifest.ts",
+    "./lap-delta": "./src/lapDelta.ts",
+    "./legacy": "./src/legacy.ts",
+    "./parser-utils": "./src/parserUtils.ts",
+    "./reference-utils": "./src/referenceUtils.ts",
+    "./session-bundle": "./src/sessionBundle.ts"
+  }
+}

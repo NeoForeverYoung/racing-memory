@@ -1,0 +1,45 @@
+{
+  "_machine": true,
+  "appName": "LapWing",
+  "actions": {
+    "signOut": "Se déconnecter",
+    "profile": "Profil",
+    "sponsor": "Soutenir",
+    "loading": "Chargement…",
+    "reset": "Réinitialiser les valeurs par défaut",
+    "update": "Mettre à jour",
+    "updating": "Mise à jour…",
+    "backToHome": "Retour à l'accueil"
+  },
+  "language": {
+    "heading": "Langue",
+    "label": "Langue d'affichage"
+  },
+  "updateToast": {
+    "title": "Mise à jour disponible",
+    "description": "Actualisez pour vider les fichiers en cache obsolètes et charger la dernière version de l'application.",
+    "refresh": "Actualiser",
+    "later": "Plus tard",
+    "updating": "Mise à jour…",
+    "updatingBody": "Récupération de la dernière version — un instant.",
+    "updated": "Vous êtes sur la dernière version."
+  },
+  "usageStatsNotice": {
+    "title": "LapWing compte désormais les visites anonymes",
+    "description": "Uniquement les pages vues, sans cookies et sans rien sur vos sessions. Désactivez-le à tout moment dans Paramètres → Confidentialité."
+  },
+  "install": {
+    "title": "Installer LapWing",
+    "body": "Fonctionne hors ligne sur le circuit — aucun réseau requis.",
+    "action": "Installer",
+    "dismiss": "Pas maintenant",
+    "iosWhy": "Sur iPhone et iPad, Safari supprime les données hors ligne d’un site non installé au bout d’une semaine environ. Ajouter LapWing à l’écran d’accueil les conserve — ainsi que vos sessions enregistrées — d’un week-end de course à l’autre.",
+    "iosStepShare": "Touchez Partager dans la barre de Safari",
+    "iosStepAdd": "Choisissez « Sur l’écran d’accueil »",
+    "iosStepOpen": "Ouvrez ensuite LapWing depuis la nouvelle icône une fois pendant que vous avez encore du réseau, pour qu’il puisse s’enregistrer en vue d’une utilisation hors ligne."
+  },
+  "notFound": {
+    "title": "Oups ! Page introuvable",
+    "home": "Retour à l’accueil"
+  }
+}

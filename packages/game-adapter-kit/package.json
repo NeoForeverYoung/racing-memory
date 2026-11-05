@@ -1,0 +1,14 @@
+{
+  "name": "@lapwing/game-adapter-kit",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "dependencies": {
+    "@lapwing/telemetry-core": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./companion": "./src/companionProtocol.ts",
+    "./testing": "./src/fixtureContract.ts"
+  }
+}

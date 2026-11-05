@@ -1,0 +1,272 @@
+{
+  "tagline": "遥测数据查看器",
+  "hero": {
+    "title": "免费的 VBO、MoTeC、AiM 与 NMEA 遥测查看器",
+    "subtitle": "拖入数据日志，即可探索你的每一圈——地图、图表、分段计时和视频同步一应俱全。所有处理都在浏览器本地完成，无需上传，也无需账户。",
+    "offlineNote": "访问一次后即可完全离线使用！"
+  },
+  "tiles": {
+    "sample": {
+      "title": "加载示例数据",
+      "description": "立即试用 Orlando Kart Center 的真实场次数据"
+    },
+    "browse": {
+      "title": "浏览已保存文件",
+      "description": "重新打开此前导入到此设备的日志"
+    },
+    "logger": {
+      "title": "从记录仪下载",
+      "description": "直接从数据记录仪下载日志"
+    },
+    "tracks": {
+      "title": "管理赛道",
+      "description": "创建、绘制和编辑赛道及布局",
+      "badge": "🎁 登录后贡献赛道，即可赢取免费云存储"
+    },
+    "build": {
+      "title": "制作自己的记录仪",
+      "description": "开源 GPS 硬件与固件——DovesDataLogger"
+    },
+    "leaderboards": {
+      "title": "排行榜",
+      "description": "按赛道、布局和引擎组别比较最快圈速"
+    }
+  },
+  "links": {
+    "privacy": "隐私政策",
+    "terms": "服务条款",
+    "admin": "管理后台"
+  },
+  "footer": {
+    "productOf": "LapWing 是 <site>PerchWerks</site> 旗下产品",
+    "previewWarning": "此分支使用预览数据库——账户可能随时被清除。请勿依赖本地以外的任何位置保存数据。如果已启用付款，<strong>请勿输入真实的付款信息。</strong>"
+  },
+  "about": {
+    "trigger": "关于",
+    "title": "关于 LapWing",
+    "featuresHeading": "功能",
+    "sections": {
+      "offline": {
+        "heading": "支持离线使用与安装",
+        "body": "LapWing 是一款完全支持离线使用的 Web 应用。首次加载后，即使没有网络连接也能正常工作——非常适合赛道环境。你可以通过浏览器菜单中的“安装”选项（或页面底部出现的提示），在手机、平板或电脑上<strong>像原生应用一样安装</strong>。"
+      },
+      "data": {
+        "heading": "数据始终留在你的设备上",
+        "body": "所有数据处理都完全在浏览器中进行，默认情况下，一切内容都保存在你的设备本地。云存储完全可选——除非你创建账户并开启同步，否则不会有任何数据离开设备。"
+      },
+      "community": {
+        "heading": "社区赛道数据库",
+        "body": "找不到你的赛道？你可以在编辑器中自定义赛道和布局，然后提交到全站数据库供所有人使用。提交内容会在收录前经过审核。"
+      },
+      "oss": {
+        "heading": "免费且开源",
+        "body": "LapWing 的所有本地功能都完全免费，源代码也已在 GitHub 上开放。可选的云存储提供免费档位；更大容量和 AI 驾驶教练属于付费附加功能，用于承担服务器与模型成本——但所有本地功能将始终免费。"
+      }
+    },
+    "features": [
+      "支持多种文件格式（NMEA、UBX、VBO、MoTeC、AiM CSV + XRK/XRZ、Alfano、Dove、Dovex）",
+      "自动检测 5 英里内的赛道与布局",
+      "自动检测行驶方向（正向/反向）",
+      "航点模式——无需预设赛道，随处都能计圈",
+      "带速度热力图的交互式行车线地图",
+      "刹车区检测与可视化",
+      "通过起终点线自动检测圈次",
+      "三分段计时与理论最佳圈",
+      "专业图表视图，支持多序列遥测图表",
+      "用于分析抓地力利用率的 G-G 图（摩擦圆）",
+      "距离或时间图表轴——按赛道位置对齐各圈",
+      "参考圈叠加与节奏差对比",
+      "多圈叠加——同时在地图和图表中对比多圈",
+      "叠加历史场次与其他记录仪的圈次（自动校准漂移）",
+      "单圈快照——按引擎与布局保存最快圈以供对比",
+      "视频与遥测回放同步",
+      "9 种叠加仪表类型（数字、指针、图表、条形、气泡、地图、节奏、分段、圈时）",
+      "导出带叠加层和音频的 MP4 视频（H.264 + AAC）",
+      "车辆档案与设定表管理",
+      "冻结的设定历史——每个场次都会保留当时使用的设定",
+      "按文件记录场次备注",
+      "BLE 设备集成（DovesDataLogger）",
+      "通过蓝牙同步设备赛道",
+      "无线固件更新——直接通过应用刷写记录仪",
+      "自定义赛道与布局编辑器，支持社区提交",
+      "本地天气查询",
+      "深色与浅色模式",
+      "PWA——可安装且完全离线",
+      "支持 8 种语言",
+      "原生 Android 应用——通过 Wi-Fi 从 AiM MyChron 下载",
+      "手机化身记录仪——无需额外硬件即可用 GPS 计圈",
+      "可选的跨设备云同步（含免费档位）",
+      "AI 驾驶教练（可选附加功能）"
+    ]
+  },
+  "fileImport": {
+    "title": "打开数据日志",
+    "processing": "正在处理...",
+    "dragDrop": "将文件拖放到此处，或点击浏览",
+    "formats": "NMEA、UBX、VBO、Dove、Alfano、AiM（CSV + XRK/XRZ）、iRacing、MoTeC CSV/LD、带 GPS 数据的 GoPro 视频等——<i>全部在你的设备本地处理。</i>",
+    "parseFailed": "文件解析失败",
+    "parseErrorSaved": "{{message}}——文件已保存，可在“浏览文件”中找到。",
+    "loaded": "已加载：{{name}}",
+    "errorLine": "错误：{{error}}",
+    "goproProgress": "正在读取 GoPro 遥测数据… 章节 {{chapter}}/{{chapters}}，{{done}}/{{total}}",
+    "goproOneRecording": "请一次只选择一段 GoPro 录像的所有章节。"
+  },
+  "credits": {
+    "trigger": "鸣谢",
+    "title": "鸣谢",
+    "intro": "本项目得以构建，离不开这些出色的开源项目和免费服务。"
+  },
+  "contact": {
+    "trigger": "联系我们",
+    "title": "联系我们",
+    "description": "给我们留言——每一条我们都会认真阅读。",
+    "categoryLabel": "类别 *",
+    "categoryPlaceholder": "选择类别",
+    "categories": {
+      "comment": "意见",
+      "featureRequest": "功能建议",
+      "complaint": "投诉",
+      "bugReport": "问题报告",
+      "newDatalogger": "新增数据记录仪连接"
+    },
+    "emailLabel": "电子邮箱",
+    "emailOptional": "（可选，用于回复）",
+    "emailPlaceholder": "your@email.com",
+    "messageLabel": "留言 *",
+    "messagePlaceholder": "有什么想告诉我们的？",
+    "sending": "正在发送…",
+    "send": "发送留言",
+    "missingFields": "缺少必填项",
+    "missingFieldsDesc": "请选择类别并输入留言。",
+    "tooLong": "留言过长",
+    "tooLongDesc": "最多 2000 个字符。",
+    "error": "错误",
+    "errorGeneric": "出现错误。",
+    "errorNetwork": "无法发送留言，请重试。",
+    "sent": "留言已发送！",
+    "sentDesc": "感谢你的反馈。",
+    "attachSession": "附上当前场次的数据日志和赛道：",
+    "attachTrackHint": "包含分析此场次所使用的赛道和布局，以便我们复现你的圈速。",
+    "attachMissing": "无法从本地存储读取场次文件。"
+  },
+  "browserCompat": {
+    "trigger": "浏览器兼容性",
+    "title": "浏览器兼容性",
+    "description": "当前浏览器的功能支持情况。",
+    "note": "所有核心功能均可在现代浏览器中使用。部分高级功能在 Chrome 或 Edge 中体验最佳。",
+    "features": {
+      "gpsFileParsing": "GPS 文件解析",
+      "videoSync": "视频同步",
+      "videoExport": "视频导出（MP4）",
+      "audioInExport": "导出视频中的音频",
+      "bleDatalogger": "BLE 数据记录仪",
+      "wifiDatalogger": "Wi-Fi 数据记录仪（MyChron）",
+      "filePicker": "文件选择器",
+      "pwaOffline": "PWA / 离线"
+    },
+    "statuses": {
+      "supported": "支持",
+      "notAvailable": "不可用",
+      "frameAccurate": "精确到帧",
+      "approximateSync": "近似同步",
+      "mp4H264": "MP4（H.264）",
+      "webmFallback": "WebM 回退方案",
+      "silentExports": "无声导出",
+      "native": "原生支持",
+      "fileInputFallback": "文件输入回退方案"
+    },
+    "triggerNative": "设备兼容性",
+    "titleNative": "设备兼容性",
+    "descriptionNative": "此设备的功能支持情况。"
+  },
+  "supportedFiles": {
+    "trigger": "支持的文件",
+    "title": "支持的文件格式",
+    "description": "所有解析都在浏览器本地完成——不会上传任何内容。",
+    "primary": {
+      "dovex": {
+        "name": "Dovex（扩展 Dove）",
+        "body": "扩展 Dove 格式，包含一个 4096 字节的元数据头，其中存有场次信息（车手、布局、圈时），后接标准 Dove CSV GPS 数据。扩展名：<code>.dovex</code>"
+      },
+      "gopro": {
+        "name": "GoPro 视频（内嵌 GPS）",
+        "body": "拖入带 GPS 数据的 GoPro 视频（HERO5 及更新型号，且已开启 GPS），相机嵌入 MP4 的 GPS 轨迹即可作为场次数据——无需记录仪。系统只读取体积很小的遥测轨道，绝不会读取整段视频；数据会保存为 Dove 日志，视频也会随之打开并自动同步。分段录像请选择其所有章节。扩展名：<code>.mp4</code>、<code>.mov</code>、<code>.360</code>（实验性）"
+      },
+      "xrk": {
+        "name": "AiM XRK / XRZ（二进制）",
+        "body": "来自 MyChron / SoloDL 记录仪的 AiM 原生二进制遥测数据，包括使用 zlib 压缩的 <code>.xrz</code> 变体。由编译为 WebAssembly 的 <libxrk>libxrk</libxrk> 完全在浏览器中解析——与其他格式一样快速且完全离线。扩展名：<code>.xrk</code>、<code>.xrz</code>"
+      },
+      "iracing": {
+        "name": "iRacing 遥测（二进制）",
+        "body": "iRacing 原生二进制遥测导出——与模拟器实时 irsdk API 提供的数据相同，无需转换为第三方 CSV/MoTeC 格式。直接在浏览器中读取（完全离线）：GPS 位置、速度和海拔用于地图与计圈，同时包含油门、刹车、挡位、转向、RPM、水温/油温以及原生横向/纵向 G 值。扩展名：<code>.ibt</code>"
+      },
+      "motecLd": {
+        "name": "MoTeC LD 二进制",
+        "body": "来自 MoTeC 数据记录仪和模拟赛车导出（ACC、iRacing 等）的二进制数据。扩展名：<code>.ld</code>"
+      },
+      "vbo": {
+        "name": "Racelogic VBO",
+        "body": "Racelogic VBOX 和 RaceBox 导出格式。扩展名：<code>.vbo</code>"
+      }
+    },
+    "secondary": {
+      "ubx": {
+        "name": "u-blox UBX 二进制",
+        "body": "来自 u-blox GPS 接收器的二进制 NAV-PVT 消息。扩展名：<code>.ubx</code>"
+      },
+      "nmea": {
+        "name": "NMEA / CSV（制表符分隔）",
+        "body": "包含 NMEA 语句、以制表符分隔的 CSV——早期自制数据记录仪使用的旧版格式。扩展名：<code>.nmea</code>、<code>.csv</code>、<code>.txt</code>"
+      },
+      "motecCsv": {
+        "name": "MoTeC CSV",
+        "body": "由 MoTeC i2 Pro 分析软件导出的 CSV。扩展名：<code>.csv</code>"
+      },
+      "alfano": {
+        "name": "Alfano CSV",
+        "body": "由 Alfano ADA 应用导出的 CSV。扩展名：<code>.csv</code>"
+      },
+      "aimCsv": {
+        "name": "AiM MyChron CSV",
+        "body": "Race Studio 3 为 MyChron 5/6 导出的 CSV（RS2Analysis 风格）。扩展名：<code>.csv</code>"
+      }
+    }
+  },
+  "buildDialog": {
+    "title": "制作自己的数据记录仪",
+    "tagline": "开源 GPS 圈速计——硬件、固件与外壳",
+    "imageAlt": "Fledgling DIY 数据记录仪",
+    "body": "Fledgling 是本应用围绕其打造的 DIY 记录仪：具备 25 Hz GPS 计圈、发动机 RPM、G 值、OLED 显示屏和无线下载功能，使用低价现成零件即可组装。原理图、固件、可 3D 打印的外壳以及完整制作指南均可在 GitHub 免费获取。",
+    "simulator": "看看它如何工作！",
+    "github": "GitHub 上的制作指南"
+  },
+  "updates": {
+    "title": "最新动态",
+    "viewAll": "查看全部动态",
+    "webUpdate": "Web 更新",
+    "news": "新闻"
+  },
+  "parseReport": {
+    "sendButton": "将此文件发送给支持团队进行诊断",
+    "title": "将文件发送给支持团队",
+    "description": "你的数据日志和留言会直接发送给开发者，以便我们新增或修复对此文件格式的支持。",
+    "fileLine": "附件：{{name}}（{{size}}）",
+    "messageLabel": "留言 *",
+    "messagePlaceholder": "例如：Alfano 6，通过 ADA 应用导出为传统 Excel 文件…",
+    "messageHint": "请注明所使用的数据记录仪（品牌 + 型号），以及导出此文件的应用/设置。",
+    "emailLabel": "电子邮箱",
+    "emailOptional": "（可选，用于回复）",
+    "emailPlaceholder": "your@email.com",
+    "missingMessage": "需要填写留言",
+    "missingMessageDesc": "请说明生成此文件的数据记录仪和应用。",
+    "tooLarge": "文件过大",
+    "tooLargeDesc": "附件大小上限为 {{max}} MB。",
+    "sending": "正在发送…",
+    "send": "发送给支持团队",
+    "sent": "报告已发送",
+    "sentDesc": "谢谢！我们会检查你的文件。",
+    "error": "发送失败",
+    "errorGeneric": "发生错误，请稍后重试。",
+    "errorNetwork": "网络错误，请检查网络连接。"
+  }
+}

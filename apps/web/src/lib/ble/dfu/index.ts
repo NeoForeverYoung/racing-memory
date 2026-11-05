@@ -1,0 +1,62 @@
+/**
+ * Firmware-update support — public API.
+ *
+ * Checks the installed version (via the standard DIS) against the published OTA
+ * manifest and unpacks the matching package. The actual on-device install is the
+ * SD-staged, application-level OTA — the image is uploaded over the `0x1820` file
+ * service (`firmwareUpload.ts`) and the device verifies + installs it. The legacy
+ * BLE-DFU transport was removed (Chrome blocklists the legacy DFU service).
+ *
+ * See `docs/plans/0002-firmware-sdcard-ota.md`.
+ */
+
+export type {
+  DeviceFirmwareInfo,
+  DfuPackage,
+  DfuPackageMeta,
+  FirmwareBuild,
+  FirmwareManifest,
+} from "./dfuTypes";
+
+export {
+  DEFAULT_MANIFEST_URL,
+  getManifestUrl,
+  parseFirmwareManifest,
+  pickBuildForVariant,
+  compareVersions,
+  compareReleases,
+  isUpdateAvailable,
+  evaluateFirmwareUpdate,
+  forceKindFor,
+  assertImageMatchesBuild,
+  fetchFirmwareManifest,
+  fetchFirmwarePackage,
+} from "./firmwareManifest";
+export type {
+  FirmwareForceKind,
+  FirmwareUpdateEvaluation,
+  FirmwareUpdateReason,
+} from "./firmwareManifest";
+
+export {
+  OTA_LAYOUT_MIN_VERSION,
+  OTA_LEGACY_MAX_BYTES,
+  needsOtaLayoutUpgrade,
+  exceedsLegacyOtaCap,
+  explainFirmwareFailure,
+} from "./firmwareUpdateError";
+export type {
+  FirmwareFailureContext,
+  FirmwareFailureExplanation,
+} from "./firmwareUpdateError";
+
+export { parseDfuPackage } from "./dfuPackage";
+
+export { acquireFirmwareImage } from "./firmwareImage";
+export type { AcquiredFirmwareImage } from "./firmwareImage";
+
+export {
+  DIS_SERVICE_UUID,
+  parseVariantFromModel,
+  readDeviceFirmwareInfo,
+} from "./version";

@@ -1,0 +1,17 @@
+{
+  "name": "@lapwing/game-adapter-iracing",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "dependencies": {
+    "@lapwing/game-adapter-kit": "workspace:*",
+    "@lapwing/telemetry-core": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixture": "./src/ibtFixture.ts",
+    "./ibt-finalizer": "./src/ibtDirectoryFinalizer.ts",
+    "./parser": "./src/iracingParser.ts",
+    "./windows-source": "./src/windowsIracingSource.ts"
+  }
+}

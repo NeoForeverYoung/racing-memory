@@ -1,0 +1,273 @@
+{
+  "_machine": true,
+  "tagline": "Visor de datos de telemetría",
+  "hero": {
+    "title": "Visor de telemetría VBO, MoTeC, AiM y NMEA gratis",
+    "subtitle": "Carga un registro de datos y explora tus vueltas: mapas, gráficos, sectores y sincronización de vídeo. Todo funciona localmente en tu navegador. Sin subir nada, sin necesidad de cuenta.",
+    "offlineNote": "¡Funciona completamente sin conexión ahora que lo has visitado!"
+  },
+  "tiles": {
+    "sample": {
+      "title": "Cargar datos de ejemplo",
+      "description": "Pruébalo ahora con una sesión real del Orlando Kart Center"
+    },
+    "browse": {
+      "title": "Explorar archivos guardados",
+      "description": "Vuelve a abrir registros que ya has importado en este dispositivo"
+    },
+    "logger": {
+      "title": "Descargar del registrador",
+      "description": "Descarga registros directamente desde tu registrador de datos"
+    },
+    "tracks": {
+      "title": "Gestionar circuitos",
+      "description": "Crea, dibuja y edita trazados de circuitos y recorridos",
+      "badge": "🎁 Aporta pistas con tu cuenta y gana almacenamiento en la nube gratis"
+    },
+    "build": {
+      "title": "Construye tu propio registrador",
+      "description": "Hardware y firmware GPS de código abierto: el DovesDataLogger"
+    },
+    "leaderboards": {
+      "title": "Clasificaciones",
+      "description": "Compara las vueltas más rápidas por circuito, trazado y clase de motor"
+    }
+  },
+  "links": {
+    "privacy": "Política de privacidad",
+    "terms": "Términos del servicio",
+    "admin": "Administración"
+  },
+  "footer": {
+    "productOf": "LapWing es un producto de <site>PerchWerks</site>",
+    "previewWarning": "Esta rama se ejecuta en una base de datos de vista previa: las cuentas pueden borrarse en cualquier momento. No confíes en que los datos se guarden en ningún sitio que no sea localmente. Si se activan los pagos, <strong>no introduzcas información de pago real.</strong>"
+  },
+  "about": {
+    "trigger": "Acerca de",
+    "title": "Acerca de LapWing",
+    "featuresHeading": "Funciones",
+    "sections": {
+      "offline": {
+        "heading": "Funciona sin conexión y se puede instalar",
+        "body": "LapWing es una aplicación web totalmente capaz de funcionar sin conexión. Una vez cargada, funciona sin conexión a internet, perfecta para la pista. Puedes <strong>instalarla como una app nativa</strong> en tu teléfono, tablet u ordenador usando la opción «Instalar» del menú de tu navegador (o el aviso que aparece al final de la página)."
+      },
+      "data": {
+        "heading": "Tus datos permanecen en tu dispositivo",
+        "body": "Todo el procesamiento de datos ocurre por completo en tu navegador, y todo se guarda localmente en tu dispositivo de forma predeterminada. El almacenamiento en la nube es totalmente opcional: nada sale de tu dispositivo a menos que crees una cuenta y actives la sincronización."
+      },
+      "community": {
+        "heading": "Base de datos comunitaria de pistas",
+        "body": "¿No ves tu pista? Puedes definir trazados de pistas y circuitos personalizados en el editor y luego enviarlos a la base de datos del sitio para que todos los usen. Los envíos se revisan antes de añadirse."
+      },
+      "oss": {
+        "heading": "Gratis y de código abierto",
+        "body": "Todas las funciones locales de LapWing son completamente gratuitas, y el código fuente es abierto y está disponible en GitHub. El almacenamiento en la nube opcional tiene un nivel gratuito; más almacenamiento y el coaching con IA son complementos de pago que cubren los costes de servidor y modelos, pero todas las funciones locales siempre serán gratuitas."
+      }
+    },
+    "features": [
+      "Compatibilidad con múltiples formatos (NMEA, UBX, VBO, MoTeC, AiM CSV + XRK/XRZ, Alfano, Dove, Dovex)",
+      "Detección automática de pista y circuito en un radio de 5 millas",
+      "Detección automática del sentido de conducción (directo/inverso)",
+      "Modo waypoint: cronometraje de vueltas en cualquier lugar, sin necesidad de pista",
+      "Mapa interactivo de la trazada con mapa de calor de velocidad",
+      "Detección y visualización de zonas de frenado",
+      "Detección automática de vueltas mediante la línea de meta",
+      "Cronometraje por 3 sectores con vuelta óptima",
+      "Vista de gráficos pro con gráficos de telemetría de múltiples series",
+      "Diagrama G-G (círculo de fricción) para analizar el uso del agarre",
+      "Eje del gráfico por distancia o tiempo: las vueltas se alinean por posición en pista",
+      "Superposición de vuelta de referencia y comparación de delta de ritmo",
+      "Superposición de varias vueltas: compara vueltas en el mapa y los gráficos a la vez",
+      "Superpón vueltas de sesiones pasadas y otros loggers (alineadas automáticamente)",
+      "Instantáneas de vuelta: la vuelta más rápida guardada por motor y circuito para comparar",
+      "Sincronización de vídeo con reproducción de telemetría",
+      "9 tipos de indicadores superpuestos (digital, analógico, gráfico, barra, burbuja, mapa, ritmo, sector, tiempo de vuelta)",
+      "Exportación de vídeo MP4 con superposiciones y audio (H.264 + AAC)",
+      "Perfiles de vehículo y gestión de hojas de reglajes",
+      "Historial de reglajes congelado: cada sesión conserva el reglaje con el que rodó",
+      "Notas de sesión por archivo",
+      "Integración de dispositivos BLE (DovesDataLogger)",
+      "Sincronización de pistas del dispositivo por Bluetooth",
+      "Actualizaciones de firmware por aire: actualiza tu logger directamente desde la app",
+      "Editor de pistas y circuitos personalizados con envíos comunitarios",
+      "Consulta meteorológica local",
+      "Modo oscuro y claro",
+      "PWA: instalable y totalmente sin conexión",
+      "Disponible en 8 idiomas",
+      "App nativa de Android: descarga por Wi-Fi desde AiM MyChron",
+      "El teléfono como registrador: cronometraje por GPS sin hardware extra",
+      "Sincronización en la nube opcional entre tus dispositivos (nivel gratuito)",
+      "Entrenador de pilotaje con IA (complemento opcional)"
+    ]
+  },
+  "supportedFiles": {
+    "trigger": "Archivos compatibles",
+    "title": "Formatos de archivo compatibles",
+    "description": "Todo el análisis se realiza localmente en tu navegador: no se sube nada.",
+    "primary": {
+      "dovex": {
+        "name": "Dovex (Dove extendido)",
+        "body": "Formato Dove extendido con una cabecera de metadatos de 4096 bytes que contiene información de la sesión (piloto, circuito, tiempos de vuelta) seguida de datos GPS en CSV Dove estándar. Extensión: <code>.dovex</code>"
+      },
+      "gopro": {
+        "name": "Vídeo GoPro (GPS integrado)",
+        "body": "Arrastra un vídeo GoPro con GPS (HERO5 o posterior con el GPS activado) y la pista GPS que la cámara incrusta en el MP4 se convierte en la sesión, sin necesidad de registrador. Solo se lee la pequeña pista de telemetría, nunca el vídeo completo; se guarda como registro Dove y las imágenes se abren junto a él ya sincronizadas. Selecciona juntos todos los capítulos de una grabación dividida. Extensiones: <code>.mp4</code>, <code>.mov</code>, <code>.360</code> (experimental)"
+      },
+      "xrk": {
+        "name": "AiM XRK / XRZ (binario)",
+        "body": "Telemetría binaria nativa de AiM de los loggers MyChron / SoloDL, incluida la variante <code>.xrz</code> comprimida con zlib. Se analiza por completo en tu navegador con <libxrk>libxrk</libxrk> compilado a WebAssembly: rápido y totalmente sin conexión, como todos los demás formatos. Extensiones: <code>.xrk</code>, <code>.xrz</code>"
+      },
+      "iracing": {
+        "name": "Telemetría de iRacing (binario)",
+        "body": "Exportación de telemetría binaria nativa de iRacing: los mismos datos que sirve la API irsdk en vivo del simulador, sin necesidad de conversión CSV/MoTeC de terceros. Se lee directamente en tu navegador (totalmente sin conexión): la posición GPS, la velocidad y la altitud alimentan el mapa y las vueltas, junto con acelerador, freno, marcha, dirección, RPM, temperatura de agua/aceite y g lateral/longitudinal nativa. Extensión: <code>.ibt</code>"
+      },
+      "motecLd": {
+        "name": "MoTeC LD binario",
+        "body": "Datos binarios de loggers MoTeC y exportaciones de sim racing (ACC, iRacing, etc.). Extensión: <code>.ld</code>"
+      },
+      "vbo": {
+        "name": "Racelogic VBO",
+        "body": "Formato de exportación de Racelogic VBOX y RaceBox. Extensión: <code>.vbo</code>"
+      }
+    },
+    "secondary": {
+      "ubx": {
+        "name": "u-blox UBX binario",
+        "body": "Mensajes binarios NAV-PVT de receptores GPS u-blox. Extensión: <code>.ubx</code>"
+      },
+      "nmea": {
+        "name": "NMEA / CSV (delimitado por tabulaciones)",
+        "body": "CSV delimitado por tabulaciones con sentencias NMEA: el formato heredado usado por nuestros dataloggers personalizados anteriores. Extensiones: <code>.nmea</code>, <code>.csv</code>, <code>.txt</code>"
+      },
+      "motecCsv": {
+        "name": "MoTeC CSV",
+        "body": "Exportaciones CSV del software de análisis MoTeC i2 Pro. Extensión: <code>.csv</code>"
+      },
+      "alfano": {
+        "name": "Alfano CSV",
+        "body": "Exportaciones CSV de la app Alfano ADA. Extensión: <code>.csv</code>"
+      },
+      "aimCsv": {
+        "name": "AiM MyChron CSV",
+        "body": "Exportaciones CSV de Race Studio 3 (estilo RS2Analysis) para MyChron 5/6. Extensión: <code>.csv</code>"
+      }
+    }
+  },
+  "credits": {
+    "trigger": "Créditos",
+    "title": "Créditos",
+    "intro": "Construido sobre los hombros de estos increíbles proyectos de código abierto y servicios gratuitos."
+  },
+  "contact": {
+    "trigger": "Contacto",
+    "title": "Contáctanos",
+    "description": "Envíanos un mensaje: leemos todos.",
+    "categoryLabel": "Categoría *",
+    "categoryPlaceholder": "Selecciona una categoría",
+    "categories": {
+      "comment": "Comentario",
+      "featureRequest": "Solicitud de función",
+      "complaint": "Queja",
+      "bugReport": "Informe de error",
+      "newDatalogger": "Conexión de nuevo registrador de datos"
+    },
+    "emailLabel": "Correo electrónico",
+    "emailOptional": "(opcional, para responderte)",
+    "emailPlaceholder": "tu@correo.com",
+    "messageLabel": "Mensaje *",
+    "messagePlaceholder": "¿Qué tienes en mente?",
+    "sending": "Enviando…",
+    "send": "Enviar mensaje",
+    "missingFields": "Faltan campos",
+    "missingFieldsDesc": "Selecciona una categoría e introduce un mensaje.",
+    "tooLong": "Mensaje demasiado largo",
+    "tooLongDesc": "Máximo 2000 caracteres.",
+    "error": "Error",
+    "errorGeneric": "Algo salió mal.",
+    "errorNetwork": "No se pudo enviar el mensaje. Inténtalo de nuevo.",
+    "sent": "¡Mensaje enviado!",
+    "sentDesc": "Gracias por tus comentarios.",
+    "attachSession": "Adjuntar el datalog y la pista de la sesión actual:",
+    "attachTrackHint": "Incluye la pista y el trazado con los que se analizó esta sesión, para que podamos reproducir tus tiempos por vuelta.",
+    "attachMissing": "No se pudo leer el archivo de la sesión desde el almacenamiento local."
+  },
+  "browserCompat": {
+    "trigger": "Compatibilidad del navegador",
+    "title": "Compatibilidad del navegador",
+    "description": "Soporte de funciones para tu navegador actual.",
+    "note": "Todas las funciones principales funcionan en los navegadores modernos. Algunas funciones avanzadas funcionan mejor en Chrome o Edge.",
+    "features": {
+      "gpsFileParsing": "Análisis de archivos GPS",
+      "videoSync": "Sincronización de vídeo",
+      "videoExport": "Exportación de vídeo (MP4)",
+      "audioInExport": "Audio en la exportación",
+      "bleDatalogger": "Datalogger BLE",
+      "wifiDatalogger": "Registrador por Wi-Fi (MyChron)",
+      "filePicker": "Selector de archivos",
+      "pwaOffline": "PWA / Sin conexión"
+    },
+    "statuses": {
+      "supported": "Compatible",
+      "notAvailable": "No disponible",
+      "frameAccurate": "Precisión de fotograma",
+      "approximateSync": "Sincronización aproximada",
+      "mp4H264": "MP4 (H.264)",
+      "webmFallback": "Alternativa WebM",
+      "silentExports": "Exportaciones sin audio",
+      "native": "Nativo",
+      "fileInputFallback": "Alternativa de entrada de archivo"
+    },
+    "triggerNative": "Compatibilidad del dispositivo",
+    "titleNative": "Compatibilidad del dispositivo",
+    "descriptionNative": "Compatibilidad de funciones en este dispositivo."
+  },
+  "fileImport": {
+    "title": "Abrir un datalog",
+    "processing": "Procesando...",
+    "dragDrop": "Arrastra y suelta un archivo aquí, o haz clic para explorar",
+    "formats": "NMEA, UBX, VBO, Dove, Alfano, AiM (CSV + XRK/XRZ), iRacing, MoTeC CSV/LD, vídeo GoPro con GPS y más — <i>todo procesado localmente en tu dispositivo.</i>",
+    "parseFailed": "No se pudo analizar el archivo",
+    "parseErrorSaved": "{{message}} — el archivo se guardó y puedes encontrarlo en Explorar archivos.",
+    "loaded": "Cargado: {{name}}",
+    "errorLine": "Error: {{error}}",
+    "goproProgress": "Leyendo telemetría GoPro… capítulo {{chapter}}/{{chapters}}, {{done}}/{{total}}",
+    "goproOneRecording": "Selecciona los capítulos de una sola grabación GoPro a la vez."
+  },
+  "buildDialog": {
+    "title": "Construye tu propio datalogger",
+    "tagline": "Cronómetro GPS de código abierto — hardware, firmware y carcasa",
+    "imageAlt": "El datalogger DIY Fledgling",
+    "body": "El Fledgling es el logger DIY alrededor del cual se construyó esta app: cronometraje GPS a 25 Hz, RPM del motor, fuerza G, pantalla OLED y descarga inalámbrica — montado con piezas económicas y comunes. Los esquemas, el firmware, la carcasa imprimible en 3D y la guía completa de montaje son gratis en GitHub.",
+    "simulator": "¡Mira cómo funciona!",
+    "github": "Guía de montaje en GitHub"
+  },
+  "updates": {
+    "title": "Últimas novedades",
+    "viewAll": "Todas las novedades",
+    "webUpdate": "Actualización web",
+    "news": "Noticias"
+  },
+  "parseReport": {
+    "sendButton": "Enviar este archivo al equipo de soporte para su diagnóstico",
+    "title": "Enviar archivo a soporte",
+    "description": "Tu datalog y tu mensaje llegan directamente a los desarrolladores para que podamos añadir o corregir la compatibilidad con el formato de tu archivo.",
+    "fileLine": "Adjunto: {{name}} ({{size}})",
+    "messageLabel": "Mensaje *",
+    "messagePlaceholder": "p. ej. Alfano 6, exportado desde la app ADA como archivo Excel clásico…",
+    "messageHint": "Incluye el registrador de datos que usaste (marca + modelo) y con qué app/ajustes se exportó el archivo.",
+    "emailLabel": "Correo electrónico",
+    "emailOptional": "(opcional, para una respuesta)",
+    "emailPlaceholder": "tu@correo.com",
+    "missingMessage": "Mensaje obligatorio",
+    "missingMessageDesc": "Describe el registrador de datos y la app que produjeron este archivo.",
+    "tooLarge": "Archivo demasiado grande",
+    "tooLargeDesc": "Los adjuntos están limitados a {{max}} MB.",
+    "sending": "Enviando…",
+    "send": "Enviar a soporte",
+    "sent": "Informe enviado",
+    "sentDesc": "¡Gracias! Echaremos un vistazo a tu archivo.",
+    "error": "Error al enviar",
+    "errorGeneric": "Ocurrió un error. Inténtalo de nuevo más tarde.",
+    "errorNetwork": "Error de red. Comprueba tu conexión."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "loading": "正在加载资料…",
+  "loadFailed": "无法加载此资料。",
+  "notFoundTitle": "未找到车手",
+  "notFoundBody": "不存在名为“{{name}}”的车手。",
+  "vehiclesTitle": "车辆",
+  "vehiclesEmpty": "该车手尚未共享任何车辆。",
+  "unknownType": "未知类型",
+  "snapshotsTitle": "排行榜快照",
+  "snapshotsEmpty": "该车手尚未上传任何排行榜快照。",
+  "noWeight": "未填写重量",
+  "openSnapshot": "在查看器中打开此圈",
+  "sharedTitle": "共享赛段",
+  "sharedEmpty": "暂无共享赛段。",
+  "openShared": "在只读查看器中打开此赛段"
+}

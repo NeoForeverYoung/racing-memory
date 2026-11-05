@@ -1,0 +1,16 @@
+{
+  "metaTitle": "更新动态 — LapWing",
+  "metaDescription": "来自 LapWing 遥测查看器的新闻、发行说明和工程技术文章。",
+  "pageTitle": "更新动态",
+  "pageSubtitle": "团队发布的新闻、发行说明和文章。",
+  "loading": "正在加载更新动态…",
+  "loadFailed": "无法加载更新动态。",
+  "empty": "暂未发布任何内容，请稍后再来查看。",
+  "allTag": "全部",
+  "aiAssisted": "AI 辅助",
+  "readMore": "阅读更多",
+  "notFoundTitle": "未找到文章",
+  "notFoundBody": "此文章不存在或尚未发布。",
+  "backToUpdates": "所有更新",
+  "subscribeRss": "RSS 订阅源"
+}
