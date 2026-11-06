@@ -13,6 +13,26 @@ import { defaultCliAssets } from "./assets";
 import { readSessionBundle } from "./jobStore";
 import { loadTelemetry } from "./core";
 
+function applyIracingNativeLapTiming(
+  analytics: SessionAnalytics,
+  samples: ReturnType<typeof loadTelemetry>["data"]["samples"],
+): SessionAnalytics {
+  const native = samples
+    .map((sample) => ({
+      lap: sample.extraFields?.["custom:lap_best_lap"],
+      timeSec: sample.extraFields?.["custom:lap_best_lap_time"],
+    }))
+    .filter(({ timeSec }) => typeof timeSec === "number" && Number.isFinite(timeSec) && timeSec > 0);
+  if (native.length === 0) return analytics;
+
+  const best = native.reduce((current, candidate) => candidate.timeSec! < current.timeSec! ? candidate : current);
+  return {
+    ...analytics,
+    fastestLapMs: best.timeSec! * 1000,
+    fastestLapNumber: typeof best.lap === "number" && best.lap > 0 ? best.lap : analytics.fastestLapNumber,
+  };
+}
+
 export interface SessionAnalysisResult {
   analytics: SessionAnalytics;
   trackPoints: Array<{ lat: number; lon: number }>;
@@ -53,7 +73,9 @@ export async function analyzeBundle(bundlePath: string): Promise<SessionAnalysis
     track: bundleMetadata.track ?? sourceMetadata.track ?? loaded.trackName ?? undefined,
     course: bundleMetadata.course ?? sourceMetadata.course ?? loaded.courseName ?? undefined,
   };
-  const analytics = analyzeSession(loaded.data, loaded.laps, metadata);
+  const analytics = telemetryPath.toLowerCase().endsWith(".ibt")
+    ? applyIracingNativeLapTiming(analyzeSession(loaded.data, loaded.laps, metadata), loaded.data.samples)
+    : analyzeSession(loaded.data, loaded.laps, metadata);
   return {
     analytics,
     trackPoints: await reportTrackPoints(loaded),

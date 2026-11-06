@@ -25,6 +25,7 @@ import { generateBundleInsights } from "./insights";
 import { runPipeline } from "./pipelineRunner";
 import { createPipelineHandlers } from "./pipelineHandlers";
 import { captureWatch } from "./captureCommand";
+import { renderSessionAssets } from "./sessionAssets";
 
 const MEMORY_KINDS = new Set<MemoryHighlightKind>([
   "best_lap",
@@ -53,6 +54,11 @@ const SPECS = {
   "report render": {
     positionals: 1,
     valueFlags: [...COMMON_VALUE_FLAGS, "output", "images"],
+    booleanFlags: COMMON_BOOLEAN_FLAGS,
+  },
+  "session render": {
+    positionals: 1,
+    valueFlags: [...COMMON_VALUE_FLAGS, "output", "ffmpeg", "ffprobe", "video-codec", "pre-roll", "post-roll", "opt-sections"],
     booleanFlags: COMMON_BOOLEAN_FLAGS,
   },
   "coach insights": { positionals: 1, valueFlags: COMMON_VALUE_FLAGS, booleanFlags: COMMON_BOOLEAN_FLAGS },
@@ -164,6 +170,7 @@ Usage:
   lapwing memory reel <session.bundle.json> --duration 60s --output <reel.mp4>
   lapwing memory render <telemetry> <video> --output <directory>
   lapwing report render <session.bundle.json> --images 4 --output <directory>
+  lapwing session render <session.bundle.json> --output <directory>
   lapwing coach insights <session.bundle.json>
   lapwing run <job.json> [--resume] [--from <step>] [--dry-run]
   lapwing capture watch --provider mock --telemetry <file.ibt> --video <file.mp4> --output <bundle.json>
@@ -180,6 +187,15 @@ memory render options:
   --kind <all|kind,...>     best_lap,overtake,incident,finish
   --sync-offset-ms <ms>     Session time aligned with video time zero
   --sync-rate <ratio>       Video/session clock ratio (default 1)
+  --ffmpeg <binary>         FFmpeg executable (default ffmpeg)
+  --ffprobe <binary>        ffprobe executable (default ffprobe)
+  --video-codec <codec>     FFmpeg video codec (default libx264; macOS h264_videotoolbox is faster)
+
+session render options:
+  --output <directory>      New directory for memento + deterministic video edits
+  --pre-roll <seconds>      Lead-in before the fastest available lap (default 5)
+  --post-roll <seconds>     Tail after the fastest available lap (default 5)
+  --opt-sections <count>    OPT composition sections, 2-50 (default 10)
   --ffmpeg <binary>         FFmpeg executable (default ffmpeg)
   --ffprobe <binary>        ffprobe executable (default ffprobe)
 
@@ -277,6 +293,23 @@ async function main(argv: string[]): Promise<void> {
       command: name,
       ...(await renderReport(bundlePath, output, images)),
     }, report);
+    return;
+  }
+
+  if (name === "session render") {
+    const bundlePath = parsed.positional[0];
+    const output = parsed.values.get("output");
+    if (!bundlePath || !output) throw new CliError("MISSING_INPUT", "session render requires a bundle and --output <directory>.");
+    emit(parsed, await renderSessionAssets({
+      bundlePath,
+      outputDirectory: output,
+      ffmpeg: parsed.values.get("ffmpeg"),
+      ffprobe: parsed.values.get("ffprobe"),
+      videoCodec: parsed.values.get("video-codec"),
+      preRollSec: numberOption(parsed, "pre-roll", 5),
+      postRollSec: numberOption(parsed, "post-roll", 5),
+      optSections: numberOption(parsed, "opt-sections", 10),
+    }), report);
     return;
   }
 

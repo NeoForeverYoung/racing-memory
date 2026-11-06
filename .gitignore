@@ -30,6 +30,10 @@ coverage
 docs/data/*.ibt
 docs/data/*.mp4
 
+# Local Racing Memory source recordings and generated renders. They can be
+# hundreds of megabytes and are intentionally never part of the repository.
+data/
+
 # Environment — see .env.example for the schema
 .env
 .env.local

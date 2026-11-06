@@ -90,6 +90,15 @@ const OPTIONAL_CHANNELS: readonly ChannelMap[] = [
   { irVar: 'YawRate', name: 'Yaw Rate', transform: (v) => v * RAD_TO_DEG },
   { irVar: 'FuelLevel', name: 'Fuel Level', unit: 'L' },
   { irVar: 'LapDistPct', name: 'lap_dist_pct', unit: '%', transform: toPercent },
+  // Preserve iRacing's lap counter too. GPS timing can be useful for generic
+  // analysis, but video editing must use the sim's own lap boundaries.
+  { irVar: 'Lap', name: 'lap_number' },
+  // iRacing's own lap clock is authoritative when a course start/finish line
+  // is not available in the local track database. Keep it alongside GPS-derived
+  // laps so downstream reports can avoid treating a waypoint lap as canonical.
+  { irVar: 'LapBestLap', name: 'Lap Best Lap' },
+  { irVar: 'LapBestLapTime', name: 'Lap Best Lap Time', unit: 's' },
+  { irVar: 'LapLastLapTime', name: 'Lap Last Lap Time', unit: 's' },
   // Race-state channels consumed by the Racing Memory plugin. They remain
   // ordinary extra fields so the core parser stays game-neutral.
   { irVar: 'PlayerCarPosition', name: 'race_position' },
@@ -175,6 +184,18 @@ function yamlScalar(source: string, key: string): string | undefined {
   return value && value !== '{}' && value !== 'null' ? value : undefined;
 }
 
+/** Resolve the driver's entry from the iRacing Drivers list rather than taking
+ * the first `UserName` in the YAML (which belongs to another car in a session). */
+function driverNameForDriverCar(source: string): string | undefined {
+  const driverCarIdx = source.match(/^\s*DriverCarIdx:\s*(\d+)\s*$/m)?.[1];
+  if (!driverCarIdx) return undefined;
+  const entry = new RegExp(
+    `^[ \\t]*- CarIdx: ${driverCarIdx}[ \\t]*$([\\s\\S]*?)(?=^[ \\t]*- CarIdx:|^[^ \\t]|(?![\\s\\S]))`,
+    "m",
+  ).exec(source)?.[1];
+  return entry ? yamlScalar(entry, "UserName") : undefined;
+}
+
 /**
  * Extract the small stable subset of iRacing's SessionInfo YAML needed by CLI
  * reports. This intentionally avoids a YAML dependency and treats unknown
@@ -193,7 +214,7 @@ export function readIracingSessionMetadata(buffer: ArrayBuffer): IracingSessionM
     track,
     course: config && config !== track ? config : undefined,
     vehicle: yamlScalar(yaml, 'CarScreenName') ?? yamlScalar(yaml, 'CarPath'),
-    driver: yamlScalar(yaml, 'UserName'),
+    driver: driverNameForDriverCar(yaml) ?? yamlScalar(yaml, 'UserName'),
     sessionType: yamlScalar(yaml, 'SessionType'),
   };
 }

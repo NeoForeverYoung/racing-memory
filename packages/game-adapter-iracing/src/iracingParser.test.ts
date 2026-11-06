@@ -123,6 +123,7 @@ function sampleIbt(): ArrayBuffer {
       { name: 'RPM', type: T_FLOAT, unit: 'rpm', value: () => 7000 },
       { name: 'Throttle', type: T_FLOAT, unit: '%', value: () => 0.5 },
       { name: 'Gear', type: T_INT, unit: '', value: () => 3 },
+      { name: 'Lap', type: T_INT, unit: '', value: () => 8 },
       { name: 'LatAccel', type: T_FLOAT, unit: 'm/s^2', value: () => STANDARD_GRAVITY_MPS2 },
       { name: 'PlayerCarPosition', type: T_INT, unit: '', value: (i) => 5 - i },
       { name: 'PlayerCarClassPosition', type: T_INT, unit: '', value: (i) => 4 - i },
@@ -218,6 +219,7 @@ describe('parseIracingFile', () => {
     expect(extraFields['RPM']).toBeCloseTo(7000, 1);
     expect(extraFields['Throttle']).toBeCloseTo(50, 5); // 0.5 → 50%
     expect(extraFields['Gear']).toBe(3);
+    expect(extraFields.lap_number).toBe(8);
     expect(extraFields['Altitude (m)']).toBeCloseTo(620, 1);
     expect(extraFields['Lat G (Native)']).toBeCloseTo(1, 5); // 1g of LatAccel
     expect(extraFields.race_position).toBe(5);

@@ -1,0 +1,265 @@
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { videoCoverageMs } from "@lapwing/media";
+import type { GpsSample } from "@/types/racing";
+import type { SessionAnalytics } from "@/lib/sessionAnalytics";
+import { analyzeBundle } from "./report";
+import { loadTelemetry, probeVideoDuration, runBinary } from "./core";
+import { CliError } from "./errors";
+import { readSessionBundle, resolveBundlePath, writeJsonAtomic } from "./jobStore";
+
+const LAP = "custom:lap_number";
+const PROGRESS = "lap_dist_pct";
+const INCIDENTS = "race_incidents";
+const PIT = "race_on_pit_road";
+const LAST_LAP_TIME = "custom:lap_last_lap_time";
+
+export interface NativeLapSpan {
+  lap: number;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  /** iRacing's own settled result, when it is available after the line. */
+  officialTimeMs: number | null;
+  startProgress: number;
+  endProgress: number;
+  incidents: number;
+  onPitRoad: boolean;
+  complete: boolean;
+}
+
+interface OptChunk {
+  section: string;
+  lap: number;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  incidentFree: boolean;
+}
+
+export interface SessionAssetReport {
+  schemaVersion: 1;
+  command: "session render";
+  outputDirectory: string;
+  mementoPath: string;
+  optCompositePath: string;
+  fastestAvailablePath: string;
+  manifestPath: string;
+  fastestSession: { lap: number | null; timeMs: number | null };
+  fastestAvailable: NativeLapSpan;
+  video: { path: string; durationSec: number; syncOffsetMs: number; syncRate: number };
+  opt: { sections: number; estimatedDurationMs: number; chunks: OptChunk[] };
+}
+
+function field(sample: GpsSample, key: string): number | undefined {
+  return sample.extraFields[key] ?? sample.extraFields[`custom:${key}`];
+}
+
+function finite(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function interpolate(samples: GpsSample[], target: number): GpsSample | null {
+  if (samples.length === 0) return null;
+  const first = samples[0];
+  const last = samples.at(-1)!;
+  const firstProgress = field(first, PROGRESS);
+  const lastProgress = field(last, PROGRESS);
+  if (!finite(firstProgress) || !finite(lastProgress)) return null;
+  if (target <= firstProgress) return first;
+  for (let index = 1; index < samples.length; index++) {
+    const previous = samples[index - 1];
+    const current = samples[index];
+    const previousProgress = field(previous, PROGRESS);
+    const currentProgress = field(current, PROGRESS);
+    if (!finite(previousProgress) || !finite(currentProgress) || currentProgress < target) continue;
+    const fraction = (target - previousProgress) / (currentProgress - previousProgress || 1);
+    return {
+      ...current,
+      t: previous.t + (current.t - previous.t) * fraction,
+      extraFields: {
+        ...current.extraFields,
+        [INCIDENTS]: Math.max(field(previous, INCIDENTS) ?? 0, field(current, INCIDENTS) ?? 0),
+        [PIT]: Math.max(field(previous, PIT) ?? 0, field(current, PIT) ?? 0),
+      },
+    };
+  }
+  // iRacing's final GPS sample usually lands a few thousandths of a percent
+  // before 100 after filtering; it is still the lap endpoint for a video cut.
+  return target <= lastProgress + 0.02 ? last : null;
+}
+
+/** Split the iRacing-native counter into true lap windows. */
+export function nativeLapSpans(samples: GpsSample[]): NativeLapSpan[] {
+  const groups: Array<{ lap: number; samples: GpsSample[] }> = [];
+  for (const sample of samples) {
+    const lap = field(sample, LAP);
+    if (!finite(lap) || lap < 1) continue;
+    const current = groups.at(-1);
+    if (!current || current.lap !== Math.round(lap)) groups.push({ lap: Math.round(lap), samples: [sample] });
+    else current.samples.push(sample);
+  }
+  return groups.map((group, index) => {
+    const first = group.samples[0];
+    const last = group.samples.at(-1)!;
+    const next = groups[index + 1]?.samples[0];
+    const startProgress = field(first, PROGRESS) ?? 0;
+    const endProgress = field(last, PROGRESS) ?? 0;
+    const endMs = next?.t ?? last.t;
+    const incidents = Math.max(...group.samples.map((sample) => field(sample, INCIDENTS) ?? 0));
+    const previousLastLap = field(last, LAST_LAP_TIME);
+    const officialTimeSec = next
+      ? groups[index + 1].samples
+        .slice(0, 360) // six seconds at iRacing's typical 60 Hz capture rate
+        .map((sample) => field(sample, LAST_LAP_TIME))
+        .find((value) => finite(value) && value > 0 && value !== previousLastLap)
+      : undefined;
+    return {
+      lap: group.lap,
+      startMs: first.t,
+      endMs,
+      durationMs: endMs - first.t,
+      officialTimeMs: finite(officialTimeSec) ? officialTimeSec * 1000 : null,
+      startProgress,
+      endProgress,
+      incidents,
+      onPitRoad: group.samples.some((sample) => (field(sample, PIT) ?? 0) !== 0),
+      complete: Boolean(next) && startProgress <= 0.02 && endProgress >= 0.98,
+    };
+  });
+}
+
+function timeText(ms: number | null): string {
+  if (ms == null || !Number.isFinite(ms)) return "—";
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = (ms / 1000 - minutes * 60).toFixed(3).padStart(6, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function xml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+function trackPolyline(points: Array<{ lat: number; lon: number }>): string {
+  const reduced = points.filter((_, index) => index % Math.max(1, Math.ceil(points.length / 140)) === 0);
+  const lats = reduced.map((point) => point.lat);
+  const lons = reduced.map((point) => point.lon);
+  const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
+  const scale = Math.min(1460 / (maxLon - minLon || 1), 680 / (maxLat - minLat || 1));
+  return reduced.map((point) => `${(350 + (point.lon - minLon) * scale).toFixed(1)},${(1940 - (point.lat - minLat) * scale).toFixed(1)}`).join(" ");
+}
+
+function mementoSvg(analytics: SessionAnalytics, points: Array<{ lat: number; lon: number }>): string {
+  const meta = analytics.metadata;
+  const trace = trackPolyline(points);
+  const lap = analytics.fastestLapNumber == null ? "—" : `第 ${analytics.fastestLapNumber} 圈`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="2160" height="2700" viewBox="0 0 2160 2700">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#101116"/><stop offset="1" stop-color="#090a0d"/></linearGradient><radialGradient id="halo" cx="70%" cy="25%" r="65%"><stop stop-color="#e12637" stop-opacity=".28"/><stop offset="1" stop-color="#e12637" stop-opacity="0"/></radialGradient></defs>
+  <rect width="2160" height="2700" fill="url(#bg)"/><rect width="2160" height="2700" fill="url(#halo)"/><rect width="2160" height="25" fill="#e12637"/>
+  <g font-family="PingFang SC, Hiragino Sans GB, Arial Unicode MS, sans-serif"><text x="150" y="180" fill="#f5f5f6" font-size="65" font-weight="700">赛道记忆</text><text x="150" y="260" fill="#aeb0b8" font-size="36">${xml(meta.track ?? "未知赛道")}${meta.course ? ` · ${xml(meta.course)}` : ""}</text>
+  <line x1="150" y1="320" x2="2010" y2="320" stroke="#3b3b41" stroke-width="2"/><text x="1080" y="535" fill="#aeb0b8" font-size="42" text-anchor="middle">本次 Session 最快圈</text>
+  <text x="1080" y="805" fill="#fff" font-family="Arial, sans-serif" font-size="280" font-weight="700" text-anchor="middle">${timeText(analytics.fastestLapMs)}</text><rect x="690" y="865" width="780" height="82" rx="41" fill="#bb1c2d"/><text x="1080" y="920" fill="#fff" font-size="38" font-weight="700" text-anchor="middle">${lap} · iRacing 原生计时</text>
+  <polyline points="${trace}" fill="none" stroke="#701624" stroke-width="58" opacity=".55" stroke-linecap="round" stroke-linejoin="round"/><polyline points="${trace}" fill="none" stroke="#f7f7f8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><polyline points="${trace}" fill="none" stroke="#e12637" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(150 2200)"><text fill="#aeb0b8" font-size="31">车手</text><text y="72" fill="#fff" font-size="57" font-weight="700">${xml(meta.driver ?? "—")}</text><text x="700" fill="#aeb0b8" font-size="31">完整圈数</text><text x="700" y="72" fill="#fff" font-family="Arial" font-size="62" font-weight="700">${analytics.completeLapCount}</text><text x="1260" fill="#aeb0b8" font-size="31">平均圈速</text><text x="1260" y="72" fill="#fff" font-family="Arial" font-size="62" font-weight="700">${timeText(analytics.averageLapMs)}</text></g>
+  <line x1="150" y1="2450" x2="2010" y2="2450" stroke="#3b3b41" stroke-width="2"/><text x="150" y="2550" fill="#fff" font-size="43" font-weight="700">${xml(meta.vehicle ?? "—")}</text><text x="150" y="2625" fill="#aeb0b8" font-size="31">${xml(meta.sessionType ?? "Session")} · 数据来自 iRacing 原生遥测记录</text></g></svg>`;
+}
+
+function concatQuote(path: string): string { return path.replaceAll("'", "'\\''"); }
+
+function makeOptChunks(samples: GpsSample[], spans: NativeLapSpan[], sections: number): OptChunk[] {
+  const byLap = new Map<number, GpsSample[]>();
+  for (const sample of samples) {
+    const lap = field(sample, LAP);
+    if (finite(lap)) (byLap.get(Math.round(lap)) ?? byLap.set(Math.round(lap), []).get(Math.round(lap))!).push(sample);
+  }
+  const candidates = spans.filter((span) => span.complete && !span.onPitRoad);
+  const chunks: OptChunk[] = [];
+  for (let index = 0; index < sections; index++) {
+    // `lap_dist_pct` is canonicalized from iRacing's 0..1 ratio to 0..100.
+    const start = (index / sections) * 100; const end = ((index + 1) / sections) * 100;
+    const choices = candidates.flatMap((span) => {
+      const lapSamples = byLap.get(span.lap) ?? [];
+      const from = interpolate(lapSamples, start); const to = interpolate(lapSamples, end);
+      if (!from || !to || to.t <= from.t) return [];
+      return [{ section: `${Math.round(start)}–${Math.round(end)}%`, lap: span.lap, startMs: from.t, endMs: to.t, durationMs: to.t - from.t, incidentFree: (field(from, INCIDENTS) ?? 0) === (field(to, INCIDENTS) ?? 0) }];
+    }).sort((a, b) => a.durationMs - b.durationMs);
+    const selected = choices.find((choice) => choice.incidentFree) ?? choices[0];
+    if (!selected) throw new CliError("NO_COMPLETE_LAPS", "No complete, usable laps are available for OPT composition.", 1);
+    chunks.push(selected);
+  }
+  return chunks;
+}
+
+function encodeVideo(codec: string): string[] {
+  if (codec === "h264_videotoolbox") {
+    return ["-c:v", codec, "-allow_sw", "1", "-b:v", "18M", "-maxrate", "22M", "-bufsize", "36M", "-pix_fmt", "yuv420p"];
+  }
+  return ["-c:v", codec, "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"];
+}
+
+function renderFastestAvailable(options: { ffmpeg: string; videoCodec: string; videoPath: string; outputPath: string; span: NativeLapSpan; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
+  const startSec = Math.max(0, ((options.span.startMs - options.syncOffsetMs) * options.syncRate) / 1000 - options.preRollSec);
+  const endSec = Math.min(options.videoDurationSec, ((options.span.endMs - options.syncOffsetMs) * options.syncRate) / 1000 + options.postRollSec);
+  runBinary(options.ffmpeg, ["-v", "error", "-y", "-ss", startSec.toFixed(3), "-i", options.videoPath, "-t", (endSec - startSec).toFixed(3), ...encodeVideo(options.videoCodec), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", options.outputPath]);
+  return { startSec, endSec };
+}
+
+function renderOptComposite(options: { ffmpeg: string; videoCodec: string; videoPath: string; outputPath: string; chunks: OptChunk[]; syncOffsetMs: number; syncRate: number }): void {
+  const temp = mkdtempSync(join(tmpdir(), "lapwing-opt-"));
+  try {
+    const parts = options.chunks.map((chunk, index) => {
+      const path = join(temp, `${String(index).padStart(2, "0")}.mp4`);
+      const startSec = ((chunk.startMs - options.syncOffsetMs) * options.syncRate) / 1000;
+      runBinary(options.ffmpeg, ["-v", "error", "-y", "-ss", startSec.toFixed(3), "-i", options.videoPath, "-t", (chunk.durationMs / 1000).toFixed(3), ...encodeVideo(options.videoCodec), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", path]);
+      return path;
+    });
+    const concat = join(temp, "concat.txt");
+    writeFileSync(concat, parts.map((path) => `file '${concatQuote(path)}'`).join("\n"));
+    runBinary(options.ffmpeg, ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", concat, "-c", "copy", "-movflags", "+faststart", options.outputPath]);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+}
+
+export async function renderSessionAssets(options: { bundlePath: string; outputDirectory: string; ffmpeg?: string; ffprobe?: string; videoCodec?: string; preRollSec?: number; postRollSec?: number; optSections?: number }): Promise<SessionAssetReport> {
+  const absoluteBundle = resolve(options.bundlePath);
+  const outputDirectory = resolve(options.outputDirectory);
+  const bundle = readSessionBundle(absoluteBundle);
+  const video = bundle.videos[0];
+  if (!video) throw new CliError("MISSING_INPUT", "The session bundle has no video.");
+  const ffmpeg = options.ffmpeg ?? "ffmpeg";
+  const videoCodec = options.videoCodec ?? "libx264";
+  const syncOffsetMs = bundle.sync?.syncOffsetMs ?? 0;
+  const syncRate = bundle.sync?.syncRate ?? 1;
+  if (syncRate <= 0) throw new CliError("INVALID_ARGUMENT", "Bundle sync rate must be greater than zero.");
+  runBinary(ffmpeg, ["-version"]);
+  const videoPath = resolveBundlePath(absoluteBundle, video.path);
+  const videoDurationSec = probeVideoDuration(videoPath, options.ffprobe);
+  const telemetryPath = resolveBundlePath(absoluteBundle, bundle.telemetry.path);
+  const loaded = loadTelemetry(telemetryPath);
+  const spans = nativeLapSpans(loaded.data.samples);
+  const coverage = videoCoverageMs(syncOffsetMs, videoDurationSec, syncRate);
+  const available = spans.filter((span) => span.complete && span.startMs >= coverage.startMs && span.endMs <= coverage.endMs && !span.onPitRoad);
+  const lapTiming = (span: NativeLapSpan) => span.officialTimeMs ?? span.durationMs;
+  const fastestAvailable = available.reduce<NativeLapSpan | null>((best, span) => !best || lapTiming(span) < lapTiming(best) ? span : best, null);
+  if (!fastestAvailable) throw new CliError("NO_COMPLETE_LAPS", "The video does not cover a complete, usable native iRacing lap.", 1);
+  const sections = options.optSections ?? 10;
+  if (!Number.isInteger(sections) || sections < 2 || sections > 50) throw new CliError("INVALID_ARGUMENT", "--opt-sections must be an integer from 2 to 50.");
+  const chunks = makeOptChunks(loaded.data.samples, available, sections);
+  const analysis = await analyzeBundle(absoluteBundle);
+  mkdirSync(outputDirectory, { recursive: true });
+  const base = basename(telemetryPath, ".ibt").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "session";
+  const mementoPath = join(outputDirectory, `${base}-session-memento.png`);
+  const optCompositePath = join(outputDirectory, `${base}-opt-composite-${timeText(chunks.reduce((sum, chunk) => sum + chunk.durationMs, 0)).replace(":", "m").replace(".", "s")}.mp4`);
+  const fastestAvailablePath = join(outputDirectory, `${base}-fastest-available-lap-${timeText(lapTiming(fastestAvailable)).replace(":", "m").replace(".", "s")}.mp4`);
+  const manifestPath = join(outputDirectory, "session-assets.json");
+  const { default: sharp } = await import("sharp");
+  await writeFile(join(outputDirectory, `${base}-session-memento.svg`), mementoSvg(analysis.analytics, analysis.trackPoints), "utf8");
+  await sharp(Buffer.from(mementoSvg(analysis.analytics, analysis.trackPoints))).png({ compressionLevel: 9 }).toFile(mementoPath);
+  const fastestClip = renderFastestAvailable({ ffmpeg, videoCodec, videoPath, outputPath: fastestAvailablePath, span: fastestAvailable, videoDurationSec, preRollSec: options.preRollSec ?? 5, postRollSec: options.postRollSec ?? 5, syncOffsetMs, syncRate });
+  renderOptComposite({ ffmpeg, videoCodec, videoPath, outputPath: optCompositePath, chunks, syncOffsetMs, syncRate });
+  const report: SessionAssetReport = { schemaVersion: 1, command: "session render", outputDirectory, mementoPath, optCompositePath, fastestAvailablePath, manifestPath, fastestSession: { lap: analysis.analytics.fastestLapNumber, timeMs: analysis.analytics.fastestLapMs }, fastestAvailable, video: { path: videoPath, durationSec: videoDurationSec, syncOffsetMs, syncRate }, opt: { sections, estimatedDurationMs: chunks.reduce((sum, chunk) => sum + chunk.durationMs, 0), chunks } };
+  writeJsonAtomic(manifestPath, { ...report, fastestAvailableClip: fastestClip, note: analysis.analytics.fastestLapNumber === fastestAvailable.lap ? "The global fastest lap is present in this video." : "The global fastest lap is outside video coverage; fastestAvailable is intentionally labelled separately." });
+  return report;
+}
