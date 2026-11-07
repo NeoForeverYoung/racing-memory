@@ -23,6 +23,8 @@ export interface NativeLapSpan {
   durationMs: number;
   /** iRacing's own settled result, when it is available after the line. */
   officialTimeMs: number | null;
+  /** Session timestamp at which iRacing published `Last` for this lap. */
+  officialTimePublishedAtMs: number | null;
   startProgress: number;
   endProgress: number;
   incidents: number;
@@ -110,18 +112,27 @@ export function nativeLapSpans(samples: GpsSample[]): NativeLapSpan[] {
     const endMs = next?.t ?? last.t;
     const incidents = Math.max(...group.samples.map((sample) => field(sample, INCIDENTS) ?? 0));
     const previousLastLap = field(last, LAST_LAP_TIME);
-    const officialTimeSec = next
+    // `lap_last_lap_time` often settles after crossing the line.  Retain the
+    // publishing sample, rather than only its value, so the exported clip can
+    // keep the game HUD onscreen long enough to visibly show `Last`.
+    const officialSample = next
       ? groups[index + 1].samples
-        .slice(0, 360) // six seconds at iRacing's typical 60 Hz capture rate
-        .map((sample) => field(sample, LAST_LAP_TIME))
-        .find((value) => finite(value) && value > 0 && value !== previousLastLap)
+        // Wall-clock bound, rather than a sample-count bound: IBT capture rates
+        // vary, and an arbitrary 360-sample cutoff can end before `Last` appears.
+        .filter((sample) => sample.t <= endMs + 10_000)
+        .find((sample) => {
+          const value = field(sample, LAST_LAP_TIME);
+          return finite(value) && value > 0 && value !== previousLastLap;
+        })
       : undefined;
+    const officialTimeSec = officialSample ? field(officialSample, LAST_LAP_TIME) : undefined;
     return {
       lap: group.lap,
       startMs: first.t,
       endMs,
       durationMs: endMs - first.t,
       officialTimeMs: finite(officialTimeSec) ? officialTimeSec * 1000 : null,
+      officialTimePublishedAtMs: officialSample?.t ?? null,
       startProgress,
       endProgress,
       incidents,
@@ -200,12 +211,19 @@ function encodeVideo(codec: string): string[] {
   return ["-c:v", codec, "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"];
 }
 
-function renderFastestAvailable(options: { ffmpeg: string; videoCodec: string; videoPath: string; outputPath: string; span: NativeLapSpan; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
+export function fastestAvailableClipWindow(options: { span: Pick<NativeLapSpan, "startMs" | "endMs" | "officialTimePublishedAtMs">; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
   const startSec = Math.max(0, ((options.span.startMs - options.syncOffsetMs) * options.syncRate) / 1000 - options.preRollSec);
-  // Keep the HUD live beyond the line so iRacing has time to publish `Last`.
-  const endSec = Math.min(options.videoDurationSec, ((options.span.endMs - options.syncOffsetMs) * options.syncRate) / 1000 + options.postRollSec);
-  runBinary(options.ffmpeg, ["-v", "error", "-y", "-ss", startSec.toFixed(3), "-i", options.videoPath, "-t", (endSec - startSec).toFixed(3), ...encodeVideo(options.videoCodec), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", options.outputPath]);
+  // The line itself is not the completion signal displayed by the HUD: wait
+  // until iRacing publishes `Last`, then retain the requested tail after it.
+  const hudSettledAtMs = options.span.officialTimePublishedAtMs ?? options.span.endMs;
+  const endSec = Math.min(options.videoDurationSec, ((hudSettledAtMs - options.syncOffsetMs) * options.syncRate) / 1000 + options.postRollSec);
   return { startSec, endSec };
+}
+
+function renderFastestAvailable(options: { ffmpeg: string; videoCodec: string; videoPath: string; outputPath: string; span: NativeLapSpan; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
+  const clip = fastestAvailableClipWindow(options);
+  runBinary(options.ffmpeg, ["-v", "error", "-y", "-ss", clip.startSec.toFixed(3), "-i", options.videoPath, "-t", (clip.endSec - clip.startSec).toFixed(3), ...encodeVideo(options.videoCodec), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", options.outputPath]);
+  return clip;
 }
 
 function renderOptComposite(options: { ffmpeg: string; videoCodec: string; videoPath: string; outputPath: string; chunks: OptChunk[]; syncOffsetMs: number; syncRate: number }): void {
