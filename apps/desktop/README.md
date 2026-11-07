@@ -7,6 +7,19 @@ This is the native shell for the complete offline Racing Memory workflow. A rele
 - `ffmpeg.exe` and `ffprobe.exe` as application resources (no FFmpeg installation);
 - iRacing shared-memory and OBS WebSocket capture support.
 
+## Local Session Library
+
+Desktop keeps one local Session directory per completed capture. It archives the
+finalized `.ibt`, Bundle, job/artifact JSON, reports and scorecards under the
+user-selected Racing Memory data folder. The original OBS recording is never
+copied into that folder; its local path and availability are tracked only so the
+user can regenerate video outputs while it remains on the PC.
+
+The Desktop Home, Session Result and Session Library screens are the supported
+user workflow. Bundle JSON is an internal contract and should not be needed for
+normal capture or delivery. OBS passwords are supplied for the current capture
+only and are not persisted in Desktop settings.
+
 ## Recording contract
 
 1. The app waits for iRacing's live shared-memory session.

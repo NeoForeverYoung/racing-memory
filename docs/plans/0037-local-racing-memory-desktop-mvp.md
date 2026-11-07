@@ -1,6 +1,6 @@
 # Plan 0037：本地 Racing Memory Desktop MVP
 
-> 状态：提案；现有采集、分析与交付引擎已实现，待先完成真实 Windows + iRacing + OBS 端到端验收，再补本地 Session 产品壳  
+> 状态：实施中；P1 本地 Session Registry 与 P2 Desktop 三页面工作流已实现，真实 Windows + iRacing + OBS 端到端验收及 P3 安全凭据存储待补
 > 更新时间：2026-11-07  
 > 前置：Plan 0031 Racing Memory、Plan 0033 比赛自动化流水线、Plan 0034 模拟赛车平台模块化  
 > 范围：单用户、单台 Windows 电脑、本地优先的 iRacing + OBS 赛后回忆闭环  
@@ -272,28 +272,28 @@ sequenceDiagram
 - `delivery run` 是否生成最快圈、OPT、成绩单和报告；
 - 低置信度与缺文件错误是否可定位。
 
-### P1：唯一 Session 目录与 Registry
+### P1：唯一 Session 目录与 Registry（已实现）
 
-- 用唯一 `sessionId` 和时间/赛道生成 Session 目录；
+- 用唯一 capture 时间戳生成 Session 目录，并在完成 capture 后写入 iRacing Session ID；
 - 不再将 Desktop capture 输出固定为 `latest-session.bundle.json`；
 - 归档 IBT；原始视频只引用、不复制；
 - 写入 `session.json` 与 `registry.json`；
 - 支持扫描重建 Registry。
 
-### P2：Desktop 三页面 MVP
+### P2：Desktop 三页面 MVP（已实现）
 
 - Home：就绪检查、准备录制、最近 Session；
 - Session Result：进度、同步审核、产物入口、错误恢复；
 - Session Library：浏览和打开本地 Session；
 - 将 Bundle 路径从普通用户流程中移除。
 
-### P3：配置与可维护性
+### P3：配置与可维护性（部分实现）
 
-- 首次配置向导；
-- OBS 密码安全存储；
-- 默认数据根目录与输出目录设置；
-- “打开本地目录”、重新扫描、重新生成、删除 Registry 记录等受控操作；
+- 默认数据根目录、IBT 目录和 OBS 地址设置；
+- Session Library 重新扫描；
 - 对 sidecar/FFmpeg 缺失给出安装包级错误。
+
+仍待补：首次配置向导、OBS 密码的 Windows 安全凭据存储、打开本地目录和删除 Registry 记录等受控操作。
 
 ## 9. 明确不做
 

@@ -89,6 +89,7 @@ export function createDefaultJob(options: {
       { id: "assets", command: "session render", dependsOn: ["analyze", "sync"] },
       { id: "report", command: "report render", dependsOn: ["analyze"] },
       { id: "insights", command: "coach insights", dependsOn: ["analyze"] },
+      { id: "training", command: "training card", dependsOn: ["insights"] },
     ],
   });
 }

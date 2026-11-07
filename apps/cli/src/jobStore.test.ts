@@ -16,6 +16,8 @@ describe("jobStore", () => {
     writeJsonAtomic(path, manifest);
     expect(readJobManifest(path)).toEqual(manifest);
     expect(readFileSync(path, "utf8")).toContain('"schemaVersion": 1');
+    expect(manifest.steps.map((step) => step.id)).toContain("training");
+    expect(manifest.steps.find((step) => step.id === "training")?.dependsOn).toEqual(["insights"]);
   });
 
   it("uses stable hashes for equivalent values", () => {

@@ -8,6 +8,7 @@ import type { PipelineHandlers } from "./pipelineRunner";
 import { renderMemoryReel } from "./reel";
 import { analyzeBundle, renderReport } from "./report";
 import { renderSessionAssets } from "./sessionAssets";
+import { selectTrainingCard } from "./trainingCard";
 
 function optionNumber(options: Record<string, unknown>, key: string, fallback: number): number {
   const value = options[key];
@@ -66,5 +67,6 @@ export function createPipelineHandlers(): PipelineHandlers {
         optionNumber(manifest.options, "images", 4),
       ),
     insights: ({ bundlePath }) => generateBundleInsights(bundlePath),
+    training: async ({ bundlePath }) => selectTrainingCard(await generateBundleInsights(bundlePath)),
   };
 }

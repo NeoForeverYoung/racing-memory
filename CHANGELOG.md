@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **One evidence-based next-practice card per Session.** The local delivery pipeline now selects the strongest deterministic driving opportunity, saves its baseline, target and supporting evidence with the Session, and presents a single practical next exercise in Desktop instead of overwhelming drivers with a list of charts. (Plan 0038.)
+- **Local Racing Memory Desktop workflow.** The Windows Desktop now keeps each completed capture as a separate local Session, archives finalized IBT telemetry and analysis artifacts without copying the original OBS recording, and presents a Home, Session Result and Session Library workflow instead of requiring users to handle Bundle JSON paths. (Plan 0037.)
 - **F1 UDP capture foundation.** The Windows companion can now record raw, versioned `.f1udp` datagram captures locally with loopback-safe defaults and atomic finalization. Packet decoding remains deliberately unavailable until a specific F1 game protocol and redistributable golden fixture are verified. (Plan 0035.)
 - **Modular simulation-racing platform.** LapWing is now a Bun-workspaces
   monorepo with separate Web, CLI and Windows companion apps, a non-GPS-
