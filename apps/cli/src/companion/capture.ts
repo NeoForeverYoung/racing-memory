@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type {
   AdapterTelemetryFinalizer as TelemetryFinalizer,
   CanonicalRaceState,
@@ -25,6 +26,10 @@ export async function runCaptureSession(
   telemetry: TelemetryFinalizer,
   options: CaptureOptions,
 ): Promise<string> {
+  // Desktop users select an output folder, which may be new on a clean
+  // Windows machine. Create it before OBS/iRacing lifecycle work begins so a
+  // completed recording cannot fail only when writing its bundle.
+  mkdirSync(dirname(resolve(options.outputBundle)), { recursive: true });
   let joined: CanonicalRaceState | undefined;
   let green: CanonicalRaceState | undefined;
   let finished: CanonicalRaceState | undefined;

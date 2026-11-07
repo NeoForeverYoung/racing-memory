@@ -29,6 +29,7 @@
     "build:profiles": "bun run build:sim && bun run build:full && bun run bundle:assert:sim && bun scripts/assert-profile-build.mjs",
     "bundle:assert:sim": "bun scripts/assert-sim-bundle.mjs",
     "build:dev": "bun run --cwd apps/web build:dev",
+    "build:desktop:win": "bun run --cwd apps/desktop bundle:win",
     "lint": "eslint .",
     "preview": "bun run --cwd apps/web preview",
     "test": "vitest",

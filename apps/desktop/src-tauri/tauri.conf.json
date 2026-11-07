@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Racing Memory",
+  "version": "0.1.0",
+  "identifier": "com.lapwing.racing-memory",
+  "build": {
+    "beforeDevCommand": "bun --cwd apps/desktop dev",
+    "beforeBuildCommand": "bun --cwd apps/desktop build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "Racing Memory", "width": 1080, "height": 840, "minWidth": 760, "minHeight": 640, "resizable": true }],
+    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost" }
+  },
+  "bundle": {
+    "active": false
+  }
+}

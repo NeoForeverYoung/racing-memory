@@ -212,7 +212,7 @@ export function runBinary(binary: string, args: string[]): string {
   return result.stdout;
 }
 
-export function probeVideoDuration(videoPath: string, ffprobe = "ffprobe"): number {
+export function probeVideoDuration(videoPath: string, ffprobe = process.env.RACING_MEMORY_FFPROBE ?? "ffprobe"): number {
   const output = runBinary(ffprobe, [
     "-v", "error",
     "-show_entries", "format=duration",
@@ -274,7 +274,7 @@ export function renderMemoryClips(options: {
     throw new CliError("INVALID_ARGUMENT", "syncRate must be a positive finite number.");
   }
   // Fail before probing or creating directories if the encoder isn't runnable.
-  runBinary(options.ffmpeg ?? "ffmpeg", ["-version"]);
+  runBinary(options.ffmpeg ?? process.env.RACING_MEMORY_FFMPEG ?? "ffmpeg", ["-version"]);
   const durationSec = probeVideoDuration(videoPath, options.ffprobe);
   const plans = planHighlightClips(
     options.loaded.highlights,
@@ -291,7 +291,7 @@ export function renderMemoryClips(options: {
     }
 
     const outputPath = resolve(outputDirectory, safeClipName(index, plan.highlight));
-    runBinary(options.ffmpeg ?? "ffmpeg", [
+    runBinary(options.ffmpeg ?? process.env.RACING_MEMORY_FFMPEG ?? "ffmpeg", [
       "-v", "error",
       "-y",
       "-ss", plan.videoStartSec.toFixed(3),

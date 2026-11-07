@@ -202,6 +202,7 @@ function encodeVideo(codec: string): string[] {
 
 function renderFastestAvailable(options: { ffmpeg: string; videoCodec: string; videoPath: string; outputPath: string; span: NativeLapSpan; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
   const startSec = Math.max(0, ((options.span.startMs - options.syncOffsetMs) * options.syncRate) / 1000 - options.preRollSec);
+  // Keep the HUD live beyond the line so iRacing has time to publish `Last`.
   const endSec = Math.min(options.videoDurationSec, ((options.span.endMs - options.syncOffsetMs) * options.syncRate) / 1000 + options.postRollSec);
   runBinary(options.ffmpeg, ["-v", "error", "-y", "-ss", startSec.toFixed(3), "-i", options.videoPath, "-t", (endSec - startSec).toFixed(3), ...encodeVideo(options.videoCodec), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", options.outputPath]);
   return { startSec, endSec };
@@ -228,7 +229,7 @@ export async function renderSessionAssets(options: { bundlePath: string; outputD
   const bundle = readSessionBundle(absoluteBundle);
   const video = bundle.videos[0];
   if (!video) throw new CliError("MISSING_INPUT", "The session bundle has no video.");
-  const ffmpeg = options.ffmpeg ?? "ffmpeg";
+  const ffmpeg = options.ffmpeg ?? process.env.RACING_MEMORY_FFMPEG ?? "ffmpeg";
   const videoCodec = options.videoCodec ?? "libx264";
   const syncOffsetMs = bundle.sync?.syncOffsetMs ?? 0;
   const syncRate = bundle.sync?.syncRate ?? 1;
@@ -245,7 +246,11 @@ export async function renderSessionAssets(options: { bundlePath: string; outputD
   const fastestAvailable = available.reduce<NativeLapSpan | null>((best, span) => !best || lapTiming(span) < lapTiming(best) ? span : best, null);
   if (!fastestAvailable) throw new CliError("NO_COMPLETE_LAPS", "The video does not cover a complete, usable native iRacing lap.", 1);
   const sections = options.optSections ?? 10;
+  const preRollSec = options.preRollSec ?? 5;
+  const postRollSec = options.postRollSec ?? 5;
   if (!Number.isInteger(sections) || sections < 2 || sections > 50) throw new CliError("INVALID_ARGUMENT", "--opt-sections must be an integer from 2 to 50.");
+  if (!Number.isFinite(preRollSec) || preRollSec < 0) throw new CliError("INVALID_ARGUMENT", "--pre-roll must be zero or greater.");
+  if (!Number.isFinite(postRollSec) || postRollSec < 0) throw new CliError("INVALID_ARGUMENT", "--post-roll must be zero or greater.");
   const chunks = makeOptChunks(loaded.data.samples, available, sections);
   const analysis = await analyzeBundle(absoluteBundle);
   mkdirSync(outputDirectory, { recursive: true });
@@ -257,7 +262,7 @@ export async function renderSessionAssets(options: { bundlePath: string; outputD
   const { default: sharp } = await import("sharp");
   await writeFile(join(outputDirectory, `${base}-session-memento.svg`), mementoSvg(analysis.analytics, analysis.trackPoints), "utf8");
   await sharp(Buffer.from(mementoSvg(analysis.analytics, analysis.trackPoints))).png({ compressionLevel: 9 }).toFile(mementoPath);
-  const fastestClip = renderFastestAvailable({ ffmpeg, videoCodec, videoPath, outputPath: fastestAvailablePath, span: fastestAvailable, videoDurationSec, preRollSec: options.preRollSec ?? 5, postRollSec: options.postRollSec ?? 5, syncOffsetMs, syncRate });
+  const fastestClip = renderFastestAvailable({ ffmpeg, videoCodec, videoPath, outputPath: fastestAvailablePath, span: fastestAvailable, videoDurationSec, preRollSec, postRollSec, syncOffsetMs, syncRate });
   renderOptComposite({ ffmpeg, videoCodec, videoPath, outputPath: optCompositePath, chunks, syncOffsetMs, syncRate });
   const report: SessionAssetReport = { schemaVersion: 1, command: "session render", outputDirectory, mementoPath, optCompositePath, fastestAvailablePath, manifestPath, fastestSession: { lap: analysis.analytics.fastestLapNumber, timeMs: analysis.analytics.fastestLapMs }, fastestAvailable, video: { path: videoPath, durationSec: videoDurationSec, syncOffsetMs, syncRate }, opt: { sections, estimatedDurationMs: chunks.reduce((sum, chunk) => sum + chunk.durationMs, 0), chunks } };
   writeJsonAtomic(manifestPath, { ...report, fastestAvailableClip: fastestClip, note: analysis.analytics.fastestLapNumber === fastestAvailable.lap ? "The global fastest lap is present in this video." : "The global fastest lap is outside video coverage; fastestAvailable is intentionally labelled separately." });

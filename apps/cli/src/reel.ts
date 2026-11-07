@@ -36,7 +36,7 @@ export function renderMemoryReel(options: {
   ffmpeg?: string;
   ffprobe?: string;
 }): MemoryReelReport {
-  const ffmpeg = options.ffmpeg ?? "ffmpeg";
+  const ffmpeg = options.ffmpeg ?? process.env.RACING_MEMORY_FFMPEG ?? "ffmpeg";
   runBinary(ffmpeg, ["-version"]);
   const videoPath = resolve(options.videoPath);
   const outputPath = resolve(options.outputPath);

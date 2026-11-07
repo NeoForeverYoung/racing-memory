@@ -47,6 +47,9 @@
     },
     {
       "path": "./apps/web/tsconfig.node.json"
+    },
+    {
+      "path": "./apps/desktop/tsconfig.json"
     }
   ]
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import packageJson from "../../../package.json";
 import { suggestSessionSync } from "@/lib/syncSuggestion";
@@ -60,6 +60,11 @@ const SPECS = {
     positionals: 1,
     valueFlags: [...COMMON_VALUE_FLAGS, "output", "ffmpeg", "ffprobe", "video-codec", "pre-roll", "post-roll", "opt-sections"],
     booleanFlags: COMMON_BOOLEAN_FLAGS,
+  },
+  "delivery run": {
+    positionals: 1,
+    valueFlags: [...COMMON_VALUE_FLAGS, "output", "duration", "images", "post-roll", "opt-sections"],
+    booleanFlags: [...COMMON_BOOLEAN_FLAGS, "accept-low-confidence", "resume"],
   },
   "coach insights": { positionals: 1, valueFlags: COMMON_VALUE_FLAGS, booleanFlags: COMMON_BOOLEAN_FLAGS },
   run: {
@@ -171,6 +176,7 @@ Usage:
   lapwing memory render <telemetry> <video> --output <directory>
   lapwing report render <session.bundle.json> --images 4 --output <directory>
   lapwing session render <session.bundle.json> --output <directory>
+  lapwing delivery run <session.bundle.json> --output <directory>
   lapwing coach insights <session.bundle.json>
   lapwing run <job.json> [--resume] [--from <step>] [--dry-run]
   lapwing capture watch --provider mock --telemetry <file.ibt> --video <file.mp4> --output <bundle.json>
@@ -194,10 +200,15 @@ memory render options:
 session render options:
   --output <directory>      New directory for memento + deterministic video edits
   --pre-roll <seconds>      Lead-in before the fastest available lap (default 5)
-  --post-roll <seconds>     Tail after the fastest available lap (default 5)
+  --post-roll <seconds>     Tail after the complete-lap finish line (default 5)
   --opt-sections <count>    OPT composition sections, 2-50 (default 10)
   --ffmpeg <binary>         FFmpeg executable (default ffmpeg)
   --ffprobe <binary>        ffprobe executable (default ffprobe)
+
+delivery run options:
+  --output <directory>      Folder for the full Racing Memory delivery
+  --post-roll <seconds>     Keep the HUD after the line (default 5)
+  --accept-low-confidence   Render even when automatic sync needs review
 
 fixture ibt options:
   --tick-rate <hz>          Integer samples per second, 1-60 (default 10)
@@ -310,6 +321,59 @@ async function main(argv: string[]): Promise<void> {
       postRollSec: numberOption(parsed, "post-roll", 5),
       optSections: numberOption(parsed, "opt-sections", 10),
     }), report);
+    return;
+  }
+
+  if (name === "delivery run") {
+    const bundlePath = parsed.positional[0];
+    const output = parsed.values.get("output");
+    if (!bundlePath || !output) {
+      throw new CliError("MISSING_INPUT", "delivery run requires a session bundle and --output <directory>.");
+    }
+    const absoluteBundle = resolve(bundlePath);
+    const destination = resolve(output);
+    mkdirSync(destination, { recursive: true });
+    const bundle = readSessionBundle(absoluteBundle);
+    const loaded = loadTelemetry(resolveBundlePath(absoluteBundle, bundle.telemetry.path), tracksFor(parsed));
+    const suggestion = suggestSessionSync(bundle, loaded.data);
+    // Always persist the evaluated timeline.  Captured sessions retain their
+    // two OBS/iRacing anchors; imported sessions are explicitly marked for
+    // review when timestamp-only alignment is all we have.
+    bundle.sync = {
+      syncOffsetMs: suggestion.syncOffsetMs,
+      syncRate: suggestion.syncRate,
+      confidence: suggestion.confidence,
+      evidence: suggestion.evidence,
+      requiresReview: suggestion.requiresReview,
+      anchors: suggestion.anchors,
+    };
+    writeJsonAtomic(absoluteBundle, bundle);
+    if (suggestion.requiresReview && !parsed.flags.has("accept-low-confidence")) {
+      throw new CliError(
+        "SYNC_REVIEW_REQUIRED",
+        "Automatic synchronization needs review. Confirm it in the desktop app or rerun with --accept-low-confidence.",
+        1,
+      );
+    }
+    const jobPath = resolve(destination, "racing-memory-job.json");
+    const job = createDefaultJob({
+      bundlePath: absoluteBundle,
+      outputDirectory: destination,
+      jobOptions: {
+        acceptLowConfidence: parsed.flags.has("accept-low-confidence"),
+        durationSeconds: numberOption(parsed, "duration", 60),
+        images: numberOption(parsed, "images", 4),
+        postRollSeconds: numberOption(parsed, "post-roll", 5),
+        optSections: numberOption(parsed, "opt-sections", 10),
+      },
+    });
+    writeJsonAtomic(jobPath, job);
+    const manifest = await runPipeline({
+      manifestPath: jobPath,
+      handlers: createPipelineHandlers(),
+      resume: parsed.flags.has("resume"),
+    });
+    emit(parsed, { schemaVersion: 1, command: name, bundle: absoluteBundle, jobPath, sync: suggestion, manifest }, report);
     return;
   }
 

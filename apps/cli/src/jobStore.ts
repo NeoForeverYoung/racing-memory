@@ -86,6 +86,7 @@ export function createDefaultJob(options: {
       { id: "analyze", command: "analyze", dependsOn: ["inspect"] },
       { id: "memory", command: "memory detect", dependsOn: ["inspect", "sync"] },
       { id: "reel", command: "memory reel", dependsOn: ["memory"] },
+      { id: "assets", command: "session render", dependsOn: ["analyze", "sync"] },
       { id: "report", command: "report render", dependsOn: ["analyze"] },
       { id: "insights", command: "coach insights", dependsOn: ["analyze"] },
     ],

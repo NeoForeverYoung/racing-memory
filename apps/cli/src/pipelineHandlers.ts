@@ -7,6 +7,7 @@ import { resolveBundlePath } from "./jobStore";
 import type { PipelineHandlers } from "./pipelineRunner";
 import { renderMemoryReel } from "./reel";
 import { analyzeBundle, renderReport } from "./report";
+import { renderSessionAssets } from "./sessionAssets";
 
 function optionNumber(options: Record<string, unknown>, key: string, fallback: number): number {
   const value = options[key];
@@ -49,6 +50,15 @@ export function createPipelineHandlers(): PipelineHandlers {
         syncRate: suggestion.syncRate,
       });
     },
+    assets: ({ bundlePath, outputDirectory, manifest }) => renderSessionAssets({
+      bundlePath,
+      outputDirectory: resolve(outputDirectory, "session-assets"),
+      preRollSec: optionNumber(manifest.options, "preRollSeconds", 5),
+      // Five seconds after the actual line keeps iRacing's `Last` HUD result
+      // visible in the exported complete-lap clip.
+      postRollSec: optionNumber(manifest.options, "postRollSeconds", 5),
+      optSections: optionNumber(manifest.options, "optSections", 10),
+    }),
     report: ({ bundlePath, outputDirectory, manifest }) =>
       renderReport(
         bundlePath,
