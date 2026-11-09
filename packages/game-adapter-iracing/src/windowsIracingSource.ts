@@ -110,6 +110,22 @@ export class WindowsIracingSource implements GameSource {
         const varHeaderOffset = header.getInt32(28, true);
         const numBuf = header.getInt32(32, true);
         const bufLen = header.getInt32(36, true);
+        // IRSDK exposes the memory map before its headers are populated while a
+        // track is loading. Parsing those bytes yields bogus variable counts and
+        // can overflow the buffer math below, so keep waiting instead.
+        if (
+          !Number.isInteger(sessionInfoLength) || sessionInfoLength <= 0 ||
+          !Number.isInteger(numVars) || numVars <= 0 || numVars > 4096 ||
+          !Number.isInteger(numBuf) || numBuf <= 0 || numBuf > 4 ||
+          !Number.isInteger(bufLen) || bufLen <= 0
+        ) {
+          if (!announcedConnecting) {
+            announcedConnecting = true;
+            yield this.event("connecting", "waiting-for-iracing", 0, {});
+          }
+          await new Promise((resolve) => setTimeout(resolve, this.pollMs));
+          continue;
+        }
         const totalBytes = Math.max(
           sessionInfoOffset + sessionInfoLength,
           varHeaderOffset + numVars * VAR_HEADER_BYTES,
@@ -140,6 +156,18 @@ export class WindowsIracingSource implements GameSource {
         const sessionTimeVar = variables.get("SessionTime");
         const sessionState = sessionStateVar ? readLiveValue(view, newestBuffer, sessionStateVar) : 0;
         const sessionTime = sessionTimeVar ? readLiveValue(view, newestBuffer, sessionTimeVar) : 0;
+        if (!Number.isFinite(sessionState) || sessionState < 0 || sessionState > 6) {
+          if (!announcedConnecting) {
+            announcedConnecting = true;
+            yield this.event("connecting", "waiting-for-iracing", 0, {});
+          }
+          await new Promise((resolve) => setTimeout(resolve, this.pollMs));
+          continue;
+        }
+        // IRSDK retains the previous session's terminal state (5 = Checkered,
+        // 6 = CoolDown) in the live buffer while a new track loads. Only accept
+        // a terminal state after an active state has been seen on this mapping.
+        let lifecycleArmed = sessionState <= 4;
         const yaml = readCString(bytes, sessionInfoOffset, sessionInfoLength);
         const metadata = {
           driver: yamlScalar(yaml, "UserName"),
@@ -154,19 +182,23 @@ export class WindowsIracingSource implements GameSource {
           ...readRaceChannels(view, newestBuffer, variables),
         });
         let lastState = sessionState;
-        if (sessionState === 4) {
+        let sawRacing = sessionState === 4;
+        if (sawRacing) {
           yield this.event("green", sessionId, sessionTime, {
             ...metadata,
             ...readRaceChannels(view, newestBuffer, variables),
           });
         }
-        if (sessionState >= 5) {
-          yield this.event("finished", sessionId, sessionTime, {
-            ...metadata,
-            ...readRaceChannels(view, newestBuffer, variables),
-          });
-          return;
-        }
+        // Leaving a practice session never raises a checkered flag: IRSDK just
+        // stops advancing its tick counter and the last frame stays frozen in
+        // the mapping. Without this guard the polling loop below would spin on
+        // that frame forever and OBS would keep recording. A frozen feed is
+        // only treated as a session end once an actual racing state was seen.
+        const stalledAfterMs = 8_000;
+        let lastTickAt = Date.now();
+        // A terminal state on the very first read belongs to the previous
+        // session, not to the race we were asked to capture. Do not emit
+        // "finished" here; the polling loop arms on the first active state.
         while (true) {
           await new Promise((resolve) => setTimeout(resolve, this.pollMs));
           const liveHeader = new DataView(toArrayBuffer(mapped, 0, HEADER_BYTES));
@@ -182,13 +214,31 @@ export class WindowsIracingSource implements GameSource {
           const liveMemory = new DataView(toArrayBuffer(mapped, 0, totalBytes));
           const nextState = sessionStateVar ? readLiveValue(liveMemory, latestOffset, sessionStateVar) : lastState;
           const nextTime = sessionTimeVar ? readLiveValue(liveMemory, latestOffset, sessionTimeVar) : sessionTime;
+          const tickAdvanced = latestTick > newestTick;
+          if (tickAdvanced) lastTickAt = Date.now();
+          // A torn-down mapping can read as garbage, so check the frozen feed
+          // before validating SessionState. Emitting "finished" here lets the
+          // companion stop OBS and finalize the session bundle.
+          if (!tickAdvanced && sawRacing && Date.now() - lastTickAt >= stalledAfterMs) {
+            yield this.event("finished", sessionId, nextTime, {
+              ...metadata,
+              ...readRaceChannels(liveMemory, latestOffset, variables),
+            });
+            return;
+          }
+          if (!Number.isFinite(nextState) || nextState < 0 || nextState > 6) {
+            continue;
+          }
+          if (nextState === 4) sawRacing = true;
+          // GetInCar / Warmup / ParadeLaps / Racing prove a new session is live.
+          if (nextState <= 4) lifecycleArmed = true;
           if (nextState !== lastState && nextState === 4) {
             yield this.event("green", sessionId, nextTime, {
               ...metadata,
               ...readRaceChannels(liveMemory, latestOffset, variables),
             });
           }
-          if (nextState >= 5) {
+          if (lifecycleArmed && nextState >= 5) {
             yield this.event("finished", sessionId, nextTime, {
               ...metadata,
               ...readRaceChannels(liveMemory, latestOffset, variables),

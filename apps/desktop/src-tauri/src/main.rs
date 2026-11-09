@@ -530,8 +530,11 @@ fn run_sidecar(
         }
     });
     let status = child.wait().map_err(|error| format!("Could not wait for the engine: {error}"))?;
-    let _ = stdout_reader.join();
-    let _ = stderr_reader.join();
+    // A grandchild that inherited the pipe can keep it open forever. Joining
+    // the readers here hangs the capture thread after the engine has exited,
+    // which leaves the UI stuck on "waiting for race". Detach them instead.
+    drop(stdout_reader);
+    drop(stderr_reader);
     if status.success() {
         Ok(())
     } else {
@@ -608,6 +611,9 @@ fn start_capture(app: AppHandle, request: CaptureRequest) -> Result<(), String> 
             },
             Err(error) => event(&app, "capture", "error", error),
         }
+        // Always signal termination so the UI clears its busy state even when
+        // the engine exits without a usable error event.
+        event(&app, "capture", "info", "Capture engine stopped.");
     });
     Ok(())
 }

@@ -33,6 +33,7 @@ export async function runCaptureSession(
   let joined: CanonicalRaceState | undefined;
   let green: CanonicalRaceState | undefined;
   let finished: CanonicalRaceState | undefined;
+  let sawGreen = false;
   let recordingStarted: RecorderStartResult | undefined;
   let recordingStopped: RecorderStopResult | undefined;
   for await (const race of game.events()) {
@@ -40,10 +41,15 @@ export async function runCaptureSession(
     joined ??= race;
     if (race.state === "green" && !recordingStarted) {
       green = race;
+      sawGreen = true;
       recordingStarted = await recorder.start(race);
       options.onEvent?.({ version: 1, event: "recording.started", race });
     }
     if (race.state === "finished") {
+      // A terminal event before any green flag is a stale value from the
+      // previous session (typical while a track is loading). Ignore it instead
+      // of starting and immediately stopping the recorder.
+      if (!sawGreen) continue;
       finished = race;
       if (!recordingStarted) {
         green = race;

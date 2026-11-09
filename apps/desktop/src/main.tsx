@@ -75,6 +75,10 @@ function App() {
         setBusy(null);
         void refresh();
       }
+      if (payload.kind === "capture" && payload.message === "Capture engine stopped.") {
+        setBusy(null);
+        void refresh();
+      }
       if (payload.message === "Session is ready to review." || payload.message === "Race assets are ready.") {
         void refresh();
         setBusy(null);

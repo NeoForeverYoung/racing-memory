@@ -54,3 +54,12 @@ apps/web/src/plugins/coaching/
 *.njsproj
 *.sln
 *.sw?
+
+# Local Tauri desktop build artifacts. The compiled sidecar, generated
+# schemas, icons and the multi-gigabyte Rust target directory are produced by
+# `tauri dev` / `bun build --compile` on this machine and must never be pushed.
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
+apps/desktop/src-tauri/icons/
+apps/desktop/src-tauri/Cargo.lock
