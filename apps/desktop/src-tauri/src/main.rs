@@ -660,7 +660,7 @@ fn open_local_path(path: String) -> Result<(), String> {
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                "Start-Process -LiteralPath $env:RACING_MEMORY_OPEN_PATH",
+                "Start-Process -FilePath $env:RACING_MEMORY_OPEN_PATH",
             ])
             .env("RACING_MEMORY_OPEN_PATH", &path)
             .spawn()

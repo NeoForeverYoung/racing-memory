@@ -334,7 +334,7 @@ function AssetCard({ asset, onOpen }: { asset: LocalSessionRecord["assets"][numb
   }, [asset.path]);
   const fileName = asset.path.split(/[\\/]/).at(-1);
   return <button className="asset asset-action" type="button" onClick={() => onOpen(asset.path)}>
-    {preview && <img src={preview} alt="" />}
+    {preview && <img src={preview} alt={`${assetDisplayLabel(asset)}缩略图`} />}
     <span>{assetDisplayLabel(asset)}</span>
     <strong>{fileName}</strong>
     <small>{isPreviewableImage(asset.path) ? "点击查看原图" : "点击打开"}</small>
