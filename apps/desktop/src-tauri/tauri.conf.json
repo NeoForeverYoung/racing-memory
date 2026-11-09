@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{ "title": "Racing Memory", "width": 1080, "height": 840, "minWidth": 760, "minHeight": 640, "resizable": true }],
-    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost" }
+    "security": { "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost" }
   },
   "bundle": {
     "active": false,

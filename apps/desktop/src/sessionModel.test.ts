@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  assetDisplayLabel,
   deliveryLabel,
   deliveryOverallPercent,
+  isPreviewableImage,
   parseDeliveryProgress,
   sessionTitle,
   setupReady,
+  visibleSessionAssets,
 } from "./sessionModel";
 
 describe("local desktop session presentation", () => {
@@ -30,5 +33,20 @@ describe("local desktop session presentation", () => {
     expect(reel).toMatchObject({ step: "reel", status: "started", percent: 47 });
     expect(deliveryOverallPercent({ inspect: inspect!, sync: sync! })).toBe(11);
     expect(parseDeliveryProgress("not json")).toBeNull();
+  });
+
+  it("keeps the Session result focused on human-readable deliverables", () => {
+    const assets = [
+      { kind: "session memento", path: "C:\\delivery\\fastest-available-lap.mp4", available: true },
+      { kind: "report", path: "C:\\delivery\\scorecard-summary.png", available: true },
+      { kind: "training", path: "C:\\delivery\\analyze.json", available: true },
+      { kind: "report", path: "C:\\delivery\\missing.html", available: false },
+    ];
+
+    expect(visibleSessionAssets(assets)).toEqual(assets.slice(0, 2));
+    expect(assetDisplayLabel(assets[0])).toBe("最快完整圈");
+    expect(assetDisplayLabel(assets[1])).toBe("赛后成绩单");
+    expect(isPreviewableImage(assets[1].path)).toBe(true);
+    expect(isPreviewableImage(assets[0].path)).toBe(false);
   });
 });

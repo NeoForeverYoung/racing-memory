@@ -78,6 +78,32 @@ export type DeliveryStepProgress = {
 };
 export type DeliveryProgress = Partial<Record<DeliveryStepId, DeliveryStepProgress>>;
 
+const USER_ASSET_EXTENSIONS = new Set([".html", ".jpeg", ".jpg", ".mp4", ".png", ".webp"]);
+
+function extension(path: string): string {
+  const match = path.toLowerCase().match(/\.[a-z0-9]+$/);
+  return match?.[0] ?? "";
+}
+
+export function visibleSessionAssets(assets: LocalSessionAsset[]): LocalSessionAsset[] {
+  return assets.filter((asset) => asset.available && USER_ASSET_EXTENSIONS.has(extension(asset.path)));
+}
+
+export function isPreviewableImage(path: string): boolean {
+  return [".jpeg", ".jpg", ".png", ".webp"].includes(extension(path));
+}
+
+export function assetDisplayLabel(asset: LocalSessionAsset): string {
+  const name = asset.path.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
+  if (name.includes("fastest-available-lap")) return "最快完整圈";
+  if (name.includes("opt-composite")) return "OPT 合成圈";
+  if (name === "reel.mp4") return "Racing Memory 回忆视频";
+  if (name.includes("session-memento")) return "Session 纪念图";
+  if (name.startsWith("scorecard-")) return "赛后成绩单";
+  if (name === "index.html") return "完整赛后报告";
+  return asset.kind;
+}
+
 export function parseDeliveryProgress(message: string): DeliveryStepProgress | null {
   let value: unknown;
   try {

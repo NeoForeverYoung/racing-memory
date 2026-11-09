@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -630,6 +631,53 @@ fn get_delivery_progress(session_id: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+fn read_image_preview(path: String) -> Result<Option<String>, String> {
+    let path = PathBuf::from(path);
+    let mime = match path.extension().and_then(|value| value.to_str()).map(str::to_ascii_lowercase).as_deref() {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => return Ok(None),
+    };
+    let metadata = fs::metadata(&path).map_err(|error| format!("Cannot read preview file: {error}"))?;
+    if !metadata.is_file() || metadata.len() > 12 * 1024 * 1024 {
+        return Ok(None);
+    }
+    let bytes = fs::read(path).map_err(|error| format!("Cannot read preview file: {error}"))?;
+    Ok(Some(format!("data:{mime};base64,{}", BASE64_STANDARD.encode(bytes))))
+}
+
+#[tauri::command]
+fn open_local_path(path: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    if !path.exists() {
+        return Err("The local file is no longer available.".to_owned());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Process -LiteralPath $env:RACING_MEMORY_OPEN_PATH",
+            ])
+            .env("RACING_MEMORY_OPEN_PATH", &path)
+            .spawn()
+            .map_err(|error| format!("Could not open local file: {error}"))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|error| format!("Could not open local file: {error}"))?;
+        Ok(())
+    }
+}
+
+#[tauri::command]
 fn run_delivery(app: AppHandle, request: DeliveryRequest) -> Result<(), String> {
     let settings = load_settings();
     let data_root = PathBuf::from(&settings.data_root);
@@ -689,6 +737,8 @@ fn main() {
             rebuild_session_registry,
             start_capture,
             get_delivery_progress,
+            read_image_preview,
+            open_local_path,
             run_delivery,
         ])
         .run(tauri::generate_context!())

@@ -283,6 +283,8 @@ sequenceDiagram
 - Desktop 现在展示总进度及九个阶段的独立百分比；耗时的 reel、最快圈/OPT 和
   报告阶段还会按已完成的视频分段、OPT 分段与图卡持续更新，异步引擎失败会立即
   解除“正在生成”状态并允许重试；
+- Session Result 只展示玩家可直接消费的视频、PNG 和 HTML，不再把内部 JSON/SVG
+  当作交付物；图片提供缩略图，所有卡片和交付目录均可一键用 Windows 默认应用打开；
 - 修复构建别名、Tauri 工作目录/图标、便携包静态资产、OBS socket 未释放，以及
   Bun 便携 sidecar 无法加载 Sharp 原生模块的问题；Windows 11 图卡改由系统内置
   Edge 的无头渲染引擎从本地 SVG 生成 PNG。
@@ -290,6 +292,8 @@ sequenceDiagram
   确认为对齐，视频在 1286.856 秒结束，IBT 持续 1763.217 秒；系统保持
   `syncOffsetMs=0`、`syncRate=1`，只在视频实际覆盖范围内选圈，不将视频拉伸到
   遥测结尾。完整交付在 macOS 和 Windows x64 便携包中均通过。
+- `release/RacingMemory-win11-x64-2026-11-09.zip` 已作为 Git LFS 便携产物提供，
+  包含 Desktop UI、CLI、FFmpeg/ffprobe、赛道和绘图资源，并附 SHA-256 校验值。
 
 该环境仍不是发布门禁的替代品：iRacing、IRSDK shared memory、反作弊、方向盘驱动、
 长赛重连与原生 Windows x64 性能仍必须在目标机器验收。

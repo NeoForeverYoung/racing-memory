@@ -5,12 +5,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   DELIVERY_STEPS,
+  assetDisplayLabel,
   deliveryLabel,
   deliveryOverallPercent,
+  isPreviewableImage,
   parseDeliveryProgress,
   sessionDate,
   sessionTitle,
   setupReady,
+  visibleSessionAssets,
   type DeliveryProgress,
   type DesktopSettings,
   type DesktopState,
@@ -176,6 +179,15 @@ function App() {
     }
   };
 
+  const openAsset = async (path: string) => {
+    setMessage(null);
+    try {
+      await invoke("open_local_path", { path });
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
   const canCapture = state.engineReady && setupReady(state.settings) && busy === null;
 
   return <main className="app-shell">
@@ -210,6 +222,7 @@ function App() {
           allowLowConfidence={allowLowConfidence}
           setAllowLowConfidence={setAllowLowConfidence}
           onGenerate={generateDelivery}
+          onOpenAsset={openAsset}
           onBack={() => setView("library")}
         />}
         {view === "settings" && <Settings settings={state.settings} busy={busy === "settings"} onSave={saveSettings} />}
@@ -267,19 +280,21 @@ function Library({ sessions, selectedId, busy, onSelect, onRebuild }: { sessions
   </>;
 }
 
-function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLowConfidence, onGenerate, onBack }: {
+function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLowConfidence, onGenerate, onOpenAsset, onBack }: {
   session: LocalSessionRecord | null;
   busy: boolean;
   progress: DeliveryProgress;
   allowLowConfidence: boolean;
   setAllowLowConfidence: (value: boolean) => void;
   onGenerate: () => void;
+  onOpenAsset: (path: string) => void;
   onBack: () => void;
 }) {
   if (!session) return <EmptyState title="请选择一个 Session" detail="从历史 Session 中选择一场比赛后，可查看状态并生成本地交付物。" />;
   const needsReview = session.syncRequiresReview && !allowLowConfidence;
   const overallPercent = deliveryOverallPercent(progress);
   const showProgress = busy || Object.keys(progress).length > 0;
+  const visibleAssets = visibleSessionAssets(session.assets);
   return <>
     <section className="hero"><div><p className="eyebrow">SESSION RESULT</p><h1>{sessionTitle(session)}</h1><p>{sessionDate(session.createdAt)} · {session.game} · {session.sessionType ?? "Session"}</p></div><button className="secondary" type="button" onClick={onBack}>返回历史库</button></section>
     <section className="result-overview">
@@ -302,9 +317,28 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
     </section>}
     <section className="delivery-card"><div><h2>赛后交付物</h2><p>将生成最快完整圈、OPT 拼接视频、赛后成绩单、报告、Racing Memory reel 与驾驶建议。所有文件只保存在本机。</p></div><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={onGenerate}>{busy ? "正在生成…" : session.deliveryStatus === "succeeded" ? "重新生成交付物" : "生成全部交付物"}</button></section>
     {!session.videoAvailable && <div className="notice"><span>原始录像目前不可用，因此不能生成视频交付物；已归档的遥测和本地 Session 信息仍可保留。</span></div>}
-    <section className="section-head"><div><h2>已有文件</h2><p>只显示这场 Session 的本地结果。</p></div></section>
-    {session.assets.length === 0 ? <EmptyState title="尚未生成赛后产物" detail="完成交付后，这里会列出成绩单、最快圈、OPT、报告和其他本地文件。" /> : <div className="asset-list">{session.assets.map((asset) => <div className="asset" key={asset.path}><span>{asset.kind}</span><strong>{asset.path.split(/[\\/]/).at(-1)}</strong><small>{asset.available ? "本机可用" : "文件已不在原位置"}</small></div>)}</div>}
+    <section className="section-head"><div><h2>可查看的交付物</h2><p>点击视频播放、点击图片查看原图；内部 JSON 和 SVG 文件不再展示。</p></div><button className="secondary" type="button" onClick={() => onOpenAsset(`${session.sessionDirectory}\\delivery`)}>打开交付目录</button></section>
+    {visibleAssets.length === 0 ? <EmptyState title="尚未生成可查看的赛后产物" detail="完成交付后，这里会显示可播放的视频、图片和赛后报告。" /> : <div className="asset-list">{visibleAssets.map((asset) => <AssetCard asset={asset} onOpen={onOpenAsset} key={asset.path} />)}</div>}
   </>;
+}
+
+function AssetCard({ asset, onOpen }: { asset: LocalSessionRecord["assets"][number]; onOpen: (path: string) => void }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isPreviewableImage(asset.path)) return;
+    let active = true;
+    void invoke<string | null>("read_image_preview", { path: asset.path })
+      .then((value) => { if (active) setPreview(value); })
+      .catch(() => { if (active) setPreview(null); });
+    return () => { active = false; };
+  }, [asset.path]);
+  const fileName = asset.path.split(/[\\/]/).at(-1);
+  return <button className="asset asset-action" type="button" onClick={() => onOpen(asset.path)}>
+    {preview && <img src={preview} alt="" />}
+    <span>{assetDisplayLabel(asset)}</span>
+    <strong>{fileName}</strong>
+    <small>{isPreviewableImage(asset.path) ? "点击查看原图" : "点击打开"}</small>
+  </button>;
 }
 
 function Settings({ settings, busy, onSave }: { settings: DesktopSettings; busy: boolean; onSave: (settings: DesktopSettings) => void }) {
