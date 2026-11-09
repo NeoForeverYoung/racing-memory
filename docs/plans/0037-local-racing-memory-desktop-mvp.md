@@ -1,7 +1,7 @@
 # Plan 0037：本地 Racing Memory Desktop MVP
 
-> 状态：实施中；P1 本地 Session Registry 与 P2 Desktop 三页面工作流已实现，真实 Windows + iRacing + OBS 端到端验收及 P3 安全凭据存储待补
-> 更新时间：2026-11-07  
+> 状态：实施中；Windows 11 ARM 虚拟机中的 x64 构建、Desktop UI、OBS WebSocket 与合成 IBT 交付链已验收，真实 Windows x64 + iRacing 验收及 P3 安全凭据存储待补
+> 更新时间：2026-11-09
 > 前置：Plan 0031 Racing Memory、Plan 0033 比赛自动化流水线、Plan 0034 模拟赛车平台模块化  
 > 范围：单用户、单台 Windows 电脑、本地优先的 iRacing + OBS 赛后回忆闭环  
 > 非目标：本计划不引入账号、服务端、云同步、视频上传、多人协作、排行榜或 Web 产品重构
@@ -271,6 +271,28 @@ sequenceDiagram
 - Bundle 的视频/遥测 hash、同步 anchors 和置信度是否正确；
 - `delivery run` 是否生成最快圈、OPT、成绩单和报告；
 - 低置信度与缺文件错误是否可定位。
+
+2026-11-09 已在 Apple Silicon Parallels 的 Windows 11 ARM 环境完成发布前置验收：
+
+- 以 Windows x64 Bun 和 `x86_64-pc-windows-msvc` Rust target 构建便携包；
+- Desktop Home、Session Library、Session Result 壳与本地 Registry 重启恢复正常；
+- OBS WebSocket v5 完成真实 StartRecord/StopRecord，产出 MP4、稳定 IBT 与 Bundle；
+- 合成 IBT 覆盖原生圈号、圈进度和 LastLapTime，可驱动最快圈/OPT 交付测试；
+- 完整 `delivery run` 已通过 inspect、sync、analyze、memory、reel、assets、report、
+  insights 与 training 全阶段，并生成最快圈、OPT、纪念图和四组报告图卡；
+- Desktop 现在展示总进度及九个阶段的独立百分比；耗时的 reel、最快圈/OPT 和
+  报告阶段还会按已完成的视频分段、OPT 分段与图卡持续更新，异步引擎失败会立即
+  解除“正在生成”状态并允许重试；
+- 修复构建别名、Tauri 工作目录/图标、便携包静态资产、OBS socket 未释放，以及
+  Bun 便携 sidecar 无法加载 Sharp 原生模块的问题；Windows 11 图卡改由系统内置
+  Edge 的无头渲染引擎从本地 SVG 生成 PNG。
+- 使用 `data/` 中 117 MB 的真实 Spa IBT 与 2.8 GB OBS 视频复验：两者起点由用户
+  确认为对齐，视频在 1286.856 秒结束，IBT 持续 1763.217 秒；系统保持
+  `syncOffsetMs=0`、`syncRate=1`，只在视频实际覆盖范围内选圈，不将视频拉伸到
+  遥测结尾。完整交付在 macOS 和 Windows x64 便携包中均通过。
+
+该环境仍不是发布门禁的替代品：iRacing、IRSDK shared memory、反作弊、方向盘驱动、
+长赛重连与原生 Windows x64 性能仍必须在目标机器验收。
 
 ### P1：唯一 Session 目录与 Registry（已实现）
 

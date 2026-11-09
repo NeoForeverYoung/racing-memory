@@ -12,6 +12,8 @@ import { generateDrivingInsights, type DrivingInsightsResult } from "@/lib/drivi
 import { defaultCliAssets } from "./assets";
 import { readSessionBundle } from "./jobStore";
 import { loadTelemetry } from "./core";
+import { emitProgress } from "./progress";
+import { rasterizeSvg } from "./svgRasterizer";
 
 function applyIracingNativeLapTiming(
   analytics: SessionAnalytics,
@@ -91,7 +93,6 @@ export async function renderReport(
 ): Promise<{ outputDirectory: string; files: string[]; analytics: SessionAnalytics }> {
   const output = resolve(outputDirectory);
   const analysis = await analyzeBundle(bundlePath);
-  const { default: sharp } = await import("sharp");
   await mkdir(output, { recursive: true });
   const files: string[] = [];
   const variants: ScorecardVariant[] = ["summary", "track", "laps", "insights"];
@@ -108,12 +109,21 @@ export async function renderReport(
     const svgName = `scorecard-${suffix}.svg`;
     const pngName = `scorecard-${suffix}.png`;
     const svg = renderScorecardSvg(input, variant);
-    await writeFile(join(output, svgName), svg, "utf8");
-    await sharp(Buffer.from(svg)).png().toFile(join(output, pngName));
+    const svgPath = join(output, svgName);
+    await writeFile(svgPath, svg, "utf8");
+    await rasterizeSvg(svg, svgPath, join(output, pngName));
     files.push(svgName, pngName);
+    emitProgress(
+      "report",
+      "running",
+      `Rendered scorecard ${index + 1} of ${count}.`,
+      count === 0 ? 0.8 : ((index + 1) / count) * 0.8,
+    );
   }
   await writeFile(join(output, "analytics.json"), `${JSON.stringify(analysis.analytics, null, 2)}\n`, "utf8");
+  emitProgress("report", "running", "Session analytics are ready.", 0.9);
   await writeFile(join(output, "index.html"), renderScorecardHtml(input), "utf8");
+  emitProgress("report", "running", "Post-session report is ready.", 1);
   files.push("analytics.json", "index.html");
   return { outputDirectory: output, files, analytics: analysis.analytics };
 }

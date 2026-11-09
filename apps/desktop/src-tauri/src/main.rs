@@ -271,7 +271,13 @@ fn resources_dir() -> Result<PathBuf, String> {
 
 fn engine_error() -> Option<String> {
     let resources = resources_dir().ok()?;
-    for name in ["lapwing-x86_64-pc-windows-msvc.exe", "ffmpeg.exe", "ffprobe.exe"] {
+    for name in [
+        "lapwing-x86_64-pc-windows-msvc.exe",
+        "ffmpeg.exe",
+        "ffprobe.exe",
+        "tracks.json",
+        "drawings.json",
+    ] {
         if !resources.join(name).is_file() {
             return Some(format!("Bundled {name} is missing. Reinstall Racing Memory."));
         }
@@ -472,7 +478,13 @@ fn archive_capture_bundle(bundle_path: &Path, session_directory: &Path) -> Resul
     })
 }
 
-fn run_sidecar(app: AppHandle, kind: &'static str, args: Vec<String>, password: Option<String>) -> Result<(), String> {
+fn run_sidecar(
+    app: AppHandle,
+    kind: &'static str,
+    args: Vec<String>,
+    password: Option<String>,
+    progress_file: Option<PathBuf>,
+) -> Result<(), String> {
     let resources = resources_dir()?;
     let ffmpeg = resources.join("ffmpeg.exe");
     let ffprobe = resources.join("ffprobe.exe");
@@ -482,10 +494,15 @@ fn run_sidecar(app: AppHandle, kind: &'static str, args: Vec<String>, password: 
         .args(args)
         .env("RACING_MEMORY_FFMPEG", ffmpeg)
         .env("RACING_MEMORY_FFPROBE", ffprobe)
+        .env("LAPWING_TRACKS_PATH", resources.join("tracks.json"))
+        .env("LAPWING_DRAWINGS_PATH", resources.join("drawings.json"))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     if let Some(value) = password {
         command.env("OBS_WEBSOCKET_PASSWORD", value);
+    }
+    if let Some(path) = progress_file {
+        command.env("RACING_MEMORY_PROGRESS_FILE", path);
     }
     let mut child = command.spawn().map_err(|error| format!("Cannot start the bundled engine: {error}"))?;
     let stdout = child.stdout.take();
@@ -575,7 +592,7 @@ fn start_capture(app: AppHandle, request: CaptureRequest) -> Result<(), String> 
     ];
     event(&app, "capture", "info", "Waiting for iRacing. Recording begins at green.");
     std::thread::spawn(move || {
-        match run_sidecar(app.clone(), "capture", args, Some(request.obs_password)) {
+        match run_sidecar(app.clone(), "capture", args, Some(request.obs_password), None) {
             Ok(()) => match archive_capture_bundle(&bundle, &session_directory) {
                 Ok(record) => {
                     let session_id = record.id.clone();
@@ -592,6 +609,24 @@ fn start_capture(app: AppHandle, request: CaptureRequest) -> Result<(), String> 
         }
     });
     Ok(())
+}
+
+#[tauri::command]
+fn get_delivery_progress(session_id: String) -> Result<Vec<String>, String> {
+    let settings = load_settings();
+    let registry = load_registry(Path::new(&settings.data_root));
+    let record = registry.sessions.iter()
+        .find(|session| session.id == session_id)
+        .ok_or_else(|| "Session not found.".to_owned())?;
+    let path = Path::new(&record.session_directory).join("delivery-progress.ndjson");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    Ok(fs::read_to_string(path)
+        .map_err(|error| format!("Could not read delivery progress: {error}"))?
+        .lines()
+        .map(str::to_owned)
+        .collect())
 }
 
 #[tauri::command]
@@ -614,9 +649,11 @@ fn run_delivery(app: AppHandle, request: DeliveryRequest) -> Result<(), String> 
         args.push("--accept-low-confidence".into());
     }
     let session_id = record.id.clone();
+    let progress_file = Path::new(&record.session_directory).join("delivery-progress.ndjson");
+    let _ = fs::remove_file(&progress_file);
     event_for_session(&app, "delivery", "info", "Creating local race assets.", Some(&session_id));
     std::thread::spawn(move || {
-        match run_sidecar(app.clone(), "delivery", args, None) {
+        match run_sidecar(app.clone(), "delivery", args, None, Some(progress_file)) {
             Ok(()) => {
                 let result = update_session(&data_root, &session_id, |session| {
                     session.delivery_status = "succeeded".to_owned();
@@ -651,6 +688,7 @@ fn main() {
             save_settings,
             rebuild_session_registry,
             start_capture,
+            get_delivery_progress,
             run_delivery,
         ])
         .run(tauri::generate_context!())

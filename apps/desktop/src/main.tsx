@@ -4,10 +4,14 @@ import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
+  DELIVERY_STEPS,
   deliveryLabel,
+  deliveryOverallPercent,
+  parseDeliveryProgress,
   sessionDate,
   sessionTitle,
   setupReady,
+  type DeliveryProgress,
   type DesktopSettings,
   type DesktopState,
   type LocalSessionRecord,
@@ -32,6 +36,7 @@ function App() {
   const [obsPassword, setObsPassword] = useState("");
   const [allowLowConfidence, setAllowLowConfidence] = useState(false);
   const [busy, setBusy] = useState<"capture" | "delivery" | "settings" | "rebuild" | null>(null);
+  const [deliveryProgress, setDeliveryProgress] = useState<DeliveryProgress>({});
   const [message, setMessage] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -54,11 +59,19 @@ function App() {
     let unlisten: (() => void) | undefined;
     void listen<AppEvent>("racing-memory://event", ({ payload }) => {
       setEvents((current) => [payload, ...current].slice(0, 20));
+      if (payload.kind === "delivery") {
+        const progress = parseDeliveryProgress(payload.message);
+        if (progress) setDeliveryProgress((current) => ({ ...current, [progress.step]: progress }));
+      }
       if (payload.sessionId) {
         setSelectedId(payload.sessionId);
         setView("session");
       }
-      if (payload.level === "error") setMessage(payload.message);
+      if (payload.level === "error") {
+        setMessage(payload.message);
+        setBusy(null);
+        void refresh();
+      }
       if (payload.message === "Session is ready to review." || payload.message === "Race assets are ready.") {
         void refresh();
         setBusy(null);
@@ -67,10 +80,47 @@ function App() {
     return () => unlisten?.();
   }, []);
 
+  useEffect(() => {
+    if (busy !== "delivery" || !selectedId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const [lines, next] = await Promise.all([
+          invoke<string[]>("get_delivery_progress", { sessionId: selectedId }),
+          invoke<DesktopState>("get_desktop_state"),
+        ]);
+        if (cancelled) return;
+        const updates: DeliveryProgress = {};
+        for (const line of lines) {
+          const progress = parseDeliveryProgress(line);
+          if (progress) updates[progress.step] = progress;
+        }
+        setDeliveryProgress(updates);
+        setState(next);
+        const session = next.sessions.find((candidate) => candidate.id === selectedId);
+        if (session && session.deliveryStatus !== "running") {
+          setBusy(null);
+          if (session.deliveryStatus === "failed") {
+            setMessage(session.deliveryError ?? "交付生成失败，请重试。");
+          }
+        }
+      } catch (error) {
+        if (!cancelled) setMessage(String(error));
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [busy, selectedId]);
+
   const chooseSession = (session: LocalSessionRecord) => {
     setSelectedId(session.id);
     setView("session");
     setAllowLowConfidence(false);
+    setDeliveryProgress({});
   };
 
   const startCapture = async () => {
@@ -88,6 +138,7 @@ function App() {
   const generateDelivery = async () => {
     if (!selected) return;
     setBusy("delivery");
+    setDeliveryProgress({});
     setMessage(null);
     try {
       await invoke("run_delivery", { request: { sessionId: selected.id, acceptLowConfidence: allowLowConfidence } });
@@ -155,6 +206,7 @@ function App() {
         {view === "session" && <SessionResult
           session={selected}
           busy={busy === "delivery"}
+          progress={deliveryProgress}
           allowLowConfidence={allowLowConfidence}
           setAllowLowConfidence={setAllowLowConfidence}
           onGenerate={generateDelivery}
@@ -215,9 +267,10 @@ function Library({ sessions, selectedId, busy, onSelect, onRebuild }: { sessions
   </>;
 }
 
-function SessionResult({ session, busy, allowLowConfidence, setAllowLowConfidence, onGenerate, onBack }: {
+function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLowConfidence, onGenerate, onBack }: {
   session: LocalSessionRecord | null;
   busy: boolean;
+  progress: DeliveryProgress;
   allowLowConfidence: boolean;
   setAllowLowConfidence: (value: boolean) => void;
   onGenerate: () => void;
@@ -225,6 +278,8 @@ function SessionResult({ session, busy, allowLowConfidence, setAllowLowConfidenc
 }) {
   if (!session) return <EmptyState title="请选择一个 Session" detail="从历史 Session 中选择一场比赛后，可查看状态并生成本地交付物。" />;
   const needsReview = session.syncRequiresReview && !allowLowConfidence;
+  const overallPercent = deliveryOverallPercent(progress);
+  const showProgress = busy || Object.keys(progress).length > 0;
   return <>
     <section className="hero"><div><p className="eyebrow">SESSION RESULT</p><h1>{sessionTitle(session)}</h1><p>{sessionDate(session.createdAt)} · {session.game} · {session.sessionType ?? "Session"}</p></div><button className="secondary" type="button" onClick={onBack}>返回历史库</button></section>
     <section className="result-overview">
@@ -236,6 +291,15 @@ function SessionResult({ session, busy, allowLowConfidence, setAllowLowConfidenc
     {session.trainingCard && <section className="training-card"><div><p className="eyebrow">NEXT PRACTICE</p><h2>下次练什么：{session.trainingCard.title}</h2><p>{session.trainingCard.detail}</p></div><div className="training-metrics"><span>当前损失 <strong>{session.trainingCard.baselineTimeLossMs} ms</strong></span><span>下次目标 <strong>≤ {session.trainingCard.targetTimeLossMs} ms</strong></span><span>证据置信度 <strong>{session.trainingCard.confidence}</strong></span></div><div className="training-copy"><strong>练习方式</strong><p>{session.trainingCard.exercise}</p><strong>完成标准</strong><p>{session.trainingCard.completionCriteria}</p></div></section>}
     {session.trainingReason && <div className="notice"><span>本场暂未生成训练卡：{session.trainingReason}</span></div>}
     {session.syncRequiresReview && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />我已检查同步，允许低置信度时间轴继续生成。</label>}
+    {showProgress && <section className="delivery-progress" aria-live="polite">
+      <div className="progress-summary"><div><span>总进度</span><strong>{overallPercent}%</strong></div><progress max="100" value={overallPercent} /></div>
+      <div className="progress-steps">{DELIVERY_STEPS.map(({ id, label }) => {
+        const item = progress[id];
+        const percent = item?.percent ?? 0;
+        const status = item?.status === "failed" ? "失败" : item?.status === "completed" || item?.status === "skipped" ? "完成" : item?.status === "started" ? "处理中" : "等待";
+        return <div className={`progress-step ${item?.status ?? "pending"}`} key={id}><div><strong>{label}</strong><span>{status}</span></div><progress max="100" value={percent} /><b>{percent}%</b>{item?.message && <small>{item.message}</small>}</div>;
+      })}</div>
+    </section>}
     <section className="delivery-card"><div><h2>赛后交付物</h2><p>将生成最快完整圈、OPT 拼接视频、赛后成绩单、报告、Racing Memory reel 与驾驶建议。所有文件只保存在本机。</p></div><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={onGenerate}>{busy ? "正在生成…" : session.deliveryStatus === "succeeded" ? "重新生成交付物" : "生成全部交付物"}</button></section>
     {!session.videoAvailable && <div className="notice"><span>原始录像目前不可用，因此不能生成视频交付物；已归档的遥测和本地 Session 信息仍可保留。</span></div>}
     <section className="section-head"><div><h2>已有文件</h2><p>只显示这场 Session 的本地结果。</p></div></section>

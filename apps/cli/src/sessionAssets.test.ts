@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createSyntheticIbt } from "@lapwing/game-adapter-iracing/fixture";
+import { parseIracingFile } from "@lapwing/game-adapter-iracing/parser";
+import { normalizeChannels } from "@/lib/channels";
 import type { GpsSample } from "@/types/racing";
 import { fastestAvailableClipWindow, nativeLapSpans } from "./sessionAssets";
 
@@ -35,5 +38,12 @@ describe("nativeLapSpans", () => {
       syncOffsetMs: 0,
       syncRate: 1,
     })).toEqual({ startSec: 0, endSec: 8.6 });
+  });
+
+  it("finds complete native laps in the synthetic IBT fixture", () => {
+    const fixture = createSyntheticIbt({ durationSec: 120, tickRate: 5, lapDurationSec: 30 });
+    const data = normalizeChannels(parseIracingFile(fixture.bytes.buffer));
+
+    expect(nativeLapSpans(data.samples).filter((lap) => lap.complete)).toHaveLength(4);
   });
 });

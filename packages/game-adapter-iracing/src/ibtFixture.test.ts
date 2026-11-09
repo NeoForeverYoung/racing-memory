@@ -10,12 +10,17 @@ describe("createSyntheticIbt", () => {
     expect(data.samples).toHaveLength(601);
     expect(data.duration).toBe(120_000);
     expect(data.fieldMappings.map((mapping) => mapping.name)).toEqual(expect.arrayContaining([
+      "lap_number",
+      "Lap Last Lap Time",
+      "lap_dist_pct",
       "race_position",
       "race_class_position",
       "race_incidents",
       "race_on_pit_road",
     ]));
     expect(data.samples.some((sample) => (sample.extraFields.race_incidents ?? 0) > 0)).toBe(true);
+    expect(data.samples.some((sample) => (sample.extraFields.lap_number ?? 0) > 1)).toBe(true);
+    expect(data.samples.some((sample) => (sample.extraFields["Lap Last Lap Time"] ?? 0) === 30)).toBe(true);
   });
 
   it("rejects fixtures that are too short to exercise event windows", () => {

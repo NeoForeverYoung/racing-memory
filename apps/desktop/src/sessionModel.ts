@@ -57,6 +57,56 @@ export type DesktopState = {
   engineError?: string | null;
 };
 
+export const DELIVERY_STEPS = [
+  { id: "inspect", label: "资料检查" },
+  { id: "sync", label: "视频同步" },
+  { id: "analyze", label: "圈速分析" },
+  { id: "memory", label: "回忆片段检测" },
+  { id: "reel", label: "Racing Memory Reel" },
+  { id: "assets", label: "最快圈 / OPT / 纪念图" },
+  { id: "report", label: "赛后报告与成绩单" },
+  { id: "insights", label: "驾驶建议" },
+  { id: "training", label: "下次练习卡" },
+] as const;
+
+export type DeliveryStepId = typeof DELIVERY_STEPS[number]["id"];
+export type DeliveryStepProgress = {
+  step: DeliveryStepId;
+  status: "pending" | "started" | "completed" | "skipped" | "failed";
+  percent: number;
+  message?: string;
+};
+export type DeliveryProgress = Partial<Record<DeliveryStepId, DeliveryStepProgress>>;
+
+export function parseDeliveryProgress(message: string): DeliveryStepProgress | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(message);
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+  const event = value as Record<string, unknown>;
+  if (event.type !== "progress" || typeof event.step !== "string") return null;
+  if (!DELIVERY_STEPS.some(({ id }) => id === event.step)) return null;
+  const status = event.status;
+  if (!["started", "running", "completed", "skipped", "failed"].includes(String(status))) return null;
+  const rawPercent = typeof event.percent === "number"
+    ? event.percent * 100
+    : status === "completed" || status === "skipped" ? 100 : 0;
+  return {
+    step: event.step as DeliveryStepId,
+    status: status === "running" ? "started" : status as DeliveryStepProgress["status"],
+    percent: Math.max(0, Math.min(100, Math.round(rawPercent))),
+    message: typeof event.message === "string" ? event.message : undefined,
+  };
+}
+
+export function deliveryOverallPercent(progress: DeliveryProgress): number {
+  const total = DELIVERY_STEPS.reduce((sum, { id }) => sum + (progress[id]?.percent ?? 0), 0);
+  return Math.round(total / DELIVERY_STEPS.length);
+}
+
 export function sessionTitle(session: Pick<LocalSessionRecord, "track" | "course" | "vehicle">): string {
   const location = [session.track, session.course].filter(Boolean).join(" · ");
   return [location || "未命名赛道", session.vehicle].filter(Boolean).join(" · ");

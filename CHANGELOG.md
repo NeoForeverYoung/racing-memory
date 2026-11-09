@@ -46,6 +46,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Plan 0031.)
 
 ### Fixed
+- **Windows Racing Memory now builds and completes local capture cleanly.**
+  The portable x64 build now resolves product aliases, uses the correct Tauri
+  working directory and icon, ships its track/drawing assets, and closes the
+  OBS WebSocket after finalizing a capture. Synthetic IBT fixtures now include
+  iRacing's native lap counters so Windows end-to-end tests can generate
+  fastest-lap and OPT assets, while Windows scorecard PNGs render through the
+  built-in Edge engine instead of an unpackaged Sharp native module. File-time
+  synchronization is also rejected when it would place the entire video outside
+  the telemetry window, falling back to reviewed start alignment instead.
+  Desktop delivery now clears its busy state when an asynchronous engine error
+  arrives and shows live overall plus per-stage percentages, including reel
+  segments, fastest-lap/OPT assets, and individual report scorecards.
+  (Plan 0037.)
 - **Racing Memory and a few leftover screens now follow your language.** The
   Memories tab, its highlight list and export messages, the course-fastest-lap
   prompt, the external reference bar, the graph resize hint, the 404 page, and

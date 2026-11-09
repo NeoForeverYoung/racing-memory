@@ -8,7 +8,7 @@ export interface SyncSuggestion extends SessionSync {
 
 export function suggestSessionSync(
   bundle: SessionBundleV1,
-  telemetry: Pick<ParsedData, "startDate">,
+  telemetry: Pick<ParsedData, "startDate"> & Partial<Pick<ParsedData, "duration">>,
 ): SyncSuggestion {
   const anchors = bundle.sync?.anchors ?? [];
   if (anchors.length > 0) {
@@ -31,8 +31,26 @@ export function suggestSessionSync(
   if (telemetry.startDate && videoStartedAt) {
     const videoStart = Date.parse(videoStartedAt);
     if (Number.isFinite(videoStart)) {
+      const syncOffsetMs = videoStart - telemetry.startDate.getTime();
+      const videoDurationMs = (bundle.videos[0]?.durationSec ?? 0) * 1000;
+      if (
+        Number.isFinite(telemetry.duration)
+        && telemetry.duration! > 0
+        && videoDurationMs > 0
+        && (syncOffsetMs >= telemetry.duration! || syncOffsetMs + videoDurationMs <= 0)
+      ) {
+        return {
+          syncOffsetMs: 0,
+          syncRate: 1,
+          method: "none",
+          confidence: "low",
+          evidence: ["File timestamps imply no overlap between telemetry and video; defaulted to aligned starts for manual review."],
+          requiresReview: true,
+          anchors: [],
+        };
+      }
       return {
-        syncOffsetMs: videoStart - telemetry.startDate.getTime(),
+        syncOffsetMs,
         syncRate: 1,
         method: "file-time",
         confidence: "low",

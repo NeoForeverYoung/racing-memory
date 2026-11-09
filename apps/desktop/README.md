@@ -5,7 +5,12 @@ This is the native shell for the complete offline Racing Memory workflow. A rele
 - the Tauri desktop UI;
 - a compiled `lapwing.exe` sidecar (no Node.js or Bun on the user's PC);
 - `ffmpeg.exe` and `ffprobe.exe` as application resources (no FFmpeg installation);
+- the bundled track and drawing databases required by local reports;
 - iRacing shared-memory and OBS WebSocket capture support.
+
+Windows scorecard PNGs are rasterized locally from the generated SVG files by
+the Microsoft Edge engine included with Windows 11. No browser window opens and
+no network request is made.
 
 ## Local Session Library
 
@@ -31,7 +36,16 @@ The IBT file is created by iRacing, not by Racing Memory. The start/stop anchors
 
 ## Release build
 
-Run the build on a Windows x64 release machine. Provide the two FFmpeg executables at build time; they are copied inside the app and are not a runtime prerequisite for users.
+Run the build with the Windows x64 Bun runtime. A native Windows x64 release
+machine is preferred; Windows 11 ARM may use its x64 emulation for pre-release
+testing. Install the Rust x64 target first:
+
+```powershell
+rustup target add x86_64-pc-windows-msvc
+```
+
+Provide the two x64 FFmpeg executables at build time; they are copied inside the
+app and are not a runtime prerequisite for users.
 
 ```powershell
 $env:RACING_MEMORY_FFMPEG = "C:\\release-tools\\ffmpeg.exe"

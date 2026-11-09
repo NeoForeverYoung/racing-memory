@@ -76,6 +76,22 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .result-overview span { display: block; color: #8f96a2; font-size: 11px; }
 .result-overview strong { display: block; margin-top: 8px; font-size: 14px; }
 .review { display: flex; gap: 8px; align-items: center; margin-top: 14px; color: #d8dce3; font-size: 12px; }
+.delivery-progress { display: grid; gap: 14px; margin-top: 14px; padding: 18px; border: 1px solid #343842; border-radius: 11px; background: #171a21; }
+.progress-summary { display: grid; gap: 8px; }
+.progress-summary > div, .progress-step > div { display: flex; align-items: center; justify-content: space-between; }
+.progress-summary span, .progress-step span { color: #9299a5; font-size: 11px; }
+.progress-summary strong { font-size: 18px; }
+.delivery-progress progress { width: 100%; height: 8px; overflow: hidden; border: 0; border-radius: 999px; accent-color: #e24658; background: #292d38; }
+.delivery-progress progress::-webkit-progress-bar { border-radius: 999px; background: #292d38; }
+.delivery-progress progress::-webkit-progress-value { border-radius: 999px; background: #e24658; }
+.progress-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.progress-step { display: grid; grid-template-columns: 1fr auto; gap: 7px 10px; padding: 11px; border: 1px solid #30343e; border-radius: 8px; background: #1d2028; }
+.progress-step > div { grid-column: 1 / -1; }
+.progress-step > progress { align-self: center; }
+.progress-step > b { color: #aeb4bf; font-size: 11px; }
+.progress-step > small { grid-column: 1 / -1; min-height: 14px; color: #777f8c; font-size: 10px; line-height: 1.4; }
+.progress-step.completed > div span, .progress-step.skipped > div span { color: #78c79a; }
+.progress-step.failed > div span { color: #ef6675; }
 .delivery-card { margin-top: 14px; border-color: #45414a; }
 .asset-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .asset { display: grid; gap: 5px; padding: 13px; border: 1px solid #343842; border-radius: 9px; background: #1b1e26; }
@@ -105,7 +121,7 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
   .nav { width: auto; white-space: nowrap; }
   .content { padding: 23px 17px 50px; }
   .hero, .capture-card, .delivery-card { align-items: stretch; flex-direction: column; }
-  .readiness, .session-grid, .result-overview, .asset-list { grid-template-columns: 1fr; }
+  .readiness, .session-grid, .result-overview, .asset-list, .progress-steps { grid-template-columns: 1fr; }
   .library-row { grid-template-columns: 1fr; gap: 7px; }
   .library-row > span { width: fit-content; }
 }

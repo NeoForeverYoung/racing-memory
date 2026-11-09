@@ -59,6 +59,7 @@ export function createSyntheticIbt(options: SyntheticIbtOptions): SyntheticIbtFi
   const incidentSec = roundMs(durationSec * 0.45);
   const secondOvertakeSec = roundMs(durationSec * 0.7);
   const records = Math.floor(durationSec * tickRate) + 1;
+  const lapProgressDenominator = Math.max(1 / tickRate, lapDurationSec - 1 / tickRate);
 
   const variables: VariableDefinition[] = [
     { name: "SessionTime", type: T_DOUBLE, unit: "s", value: (time) => time },
@@ -79,7 +80,14 @@ export function createSyntheticIbt(options: SyntheticIbtOptions): SyntheticIbtFi
     { name: "Throttle", type: T_FLOAT, unit: "%", value: (time) => 0.65 + 0.25 * Math.sin(time / 4) },
     { name: "Brake", type: T_FLOAT, unit: "%", value: (time) => Math.max(0, Math.sin(time / 7)) * 0.5 },
     { name: "Gear", type: T_INT, value: (time) => 3 + (Math.floor(time / 8) % 3) },
-    { name: "LapDistPct", type: T_FLOAT, unit: "%", value: (time) => (time % lapDurationSec) / lapDurationSec },
+    { name: "Lap", type: T_INT, value: (time) => Math.floor(time / lapDurationSec) + 1 },
+    {
+      name: "LapDistPct",
+      type: T_FLOAT,
+      unit: "%",
+      value: (time) => Math.min(1, (time % lapDurationSec) / lapProgressDenominator),
+    },
+    { name: "LapLastLapTime", type: T_FLOAT, unit: "s", value: (time) => time < lapDurationSec ? 0 : lapDurationSec },
     {
       name: "PlayerCarPosition",
       type: T_INT,

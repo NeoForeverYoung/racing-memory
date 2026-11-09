@@ -10,6 +10,7 @@ import {
 import type { LoadedTelemetry } from "./core";
 import { probeVideoDuration, runBinary } from "./core";
 import { CliError } from "./errors";
+import { emitProgress } from "./progress";
 
 export interface MemoryReelReport {
   schemaVersion: 1;
@@ -86,6 +87,12 @@ export function renderMemoryReel(options: {
         "-movflags", "+faststart",
         clipPath,
       ]);
+      emitProgress(
+        "reel",
+        "running",
+        `Encoded reel segment ${index + 1} of ${story.segments.length}.`,
+        ((index + 1) / story.segments.length) * 0.9,
+      );
       return [clipPath];
     });
     if (clips.length === 0) {
@@ -99,6 +106,7 @@ export function renderMemoryReel(options: {
       "-c", "copy", "-movflags", "+faststart",
       outputPath,
     ]);
+    emitProgress("reel", "running", "Racing Memory reel is ready.", 1);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }

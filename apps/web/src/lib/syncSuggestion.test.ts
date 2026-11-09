@@ -26,6 +26,23 @@ describe("suggestSessionSync", () => {
     });
   });
 
+  it("rejects file timestamps that place the video wholly outside telemetry", () => {
+    const value = bundle();
+    value.videos[0].startedAt = "2026-11-04T08:40:00.000Z";
+    value.videos[0].durationSec = 1_286.856;
+
+    expect(suggestSessionSync(value, {
+      startDate: new Date("2026-11-04T08:00:00.000Z"),
+      duration: 1_763_216,
+    })).toMatchObject({
+      method: "none",
+      syncOffsetMs: 0,
+      syncRate: 1,
+      confidence: "low",
+      requiresReview: true,
+    });
+  });
+
   it("fits two companion anchors with high confidence", () => {
     const value = bundle();
     value.sync = {

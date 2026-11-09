@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deliveryLabel, sessionTitle, setupReady } from "./sessionModel";
+import {
+  deliveryLabel,
+  deliveryOverallPercent,
+  parseDeliveryProgress,
+  sessionTitle,
+  setupReady,
+} from "./sessionModel";
 
 describe("local desktop session presentation", () => {
   it("uses a useful fallback title without a course", () => {
@@ -12,5 +18,17 @@ describe("local desktop session presentation", () => {
     expect(setupReady({ dataRoot: "C:\\RacingMemoryData", telemetryDirectory: "C:\\iRacing", obsUrl: "ws://127.0.0.1:4455" })).toBe(true);
     expect(setupReady({ dataRoot: "", telemetryDirectory: "C:\\iRacing", obsUrl: "ws://127.0.0.1:4455" })).toBe(false);
     expect(deliveryLabel("failed")).toContain("重试");
+  });
+
+  it("parses engine progress and computes the overall percentage", () => {
+    const inspect = parseDeliveryProgress('{"type":"progress","step":"inspect","status":"completed","percent":1}');
+    const sync = parseDeliveryProgress('{"type":"progress","step":"sync","status":"started"}');
+    const reel = parseDeliveryProgress('{"type":"progress","step":"reel","status":"running","percent":0.47}');
+
+    expect(inspect).toMatchObject({ step: "inspect", status: "completed", percent: 100 });
+    expect(sync).toMatchObject({ step: "sync", status: "started", percent: 0 });
+    expect(reel).toMatchObject({ step: "reel", status: "started", percent: 47 });
+    expect(deliveryOverallPercent({ inspect: inspect!, sync: sync! })).toBe(11);
+    expect(parseDeliveryProgress("not json")).toBeNull();
   });
 });

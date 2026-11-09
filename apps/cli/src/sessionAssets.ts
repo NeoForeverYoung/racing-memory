@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { videoCoverageMs } from "@lapwing/media";
 import type { GpsSample } from "@/types/racing";
@@ -8,7 +8,9 @@ import type { SessionAnalytics } from "@/lib/sessionAnalytics";
 import { analyzeBundle } from "./report";
 import { loadTelemetry, probeVideoDuration, runBinary } from "./core";
 import { CliError } from "./errors";
+import { emitProgress } from "./progress";
 import { readSessionBundle, resolveBundlePath, writeJsonAtomic } from "./jobStore";
+import { rasterizeSvg } from "./svgRasterizer";
 
 const LAP = "custom:lap_number";
 const PROGRESS = "lap_dist_pct";
@@ -233,11 +235,18 @@ function renderOptComposite(options: { ffmpeg: string; videoCodec: string; video
       const path = join(temp, `${String(index).padStart(2, "0")}.mp4`);
       const startSec = ((chunk.startMs - options.syncOffsetMs) * options.syncRate) / 1000;
       runBinary(options.ffmpeg, ["-v", "error", "-y", "-ss", startSec.toFixed(3), "-i", options.videoPath, "-t", (chunk.durationMs / 1000).toFixed(3), ...encodeVideo(options.videoCodec), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", path]);
+      emitProgress(
+        "assets",
+        "running",
+        `Encoded OPT section ${index + 1} of ${options.chunks.length}.`,
+        0.4 + ((index + 1) / options.chunks.length) * 0.55,
+      );
       return path;
     });
     const concat = join(temp, "concat.txt");
     writeFileSync(concat, parts.map((path) => `file '${concatQuote(path)}'`).join("\n"));
     runBinary(options.ffmpeg, ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", concat, "-c", "copy", "-movflags", "+faststart", options.outputPath]);
+    emitProgress("assets", "running", "OPT composite is ready.", 1);
   } finally { rmSync(temp, { recursive: true, force: true }); }
 }
 
@@ -277,10 +286,13 @@ export async function renderSessionAssets(options: { bundlePath: string; outputD
   const optCompositePath = join(outputDirectory, `${base}-opt-composite-${timeText(chunks.reduce((sum, chunk) => sum + chunk.durationMs, 0)).replace(":", "m").replace(".", "s")}.mp4`);
   const fastestAvailablePath = join(outputDirectory, `${base}-fastest-available-lap-${timeText(lapTiming(fastestAvailable)).replace(":", "m").replace(".", "s")}.mp4`);
   const manifestPath = join(outputDirectory, "session-assets.json");
-  const { default: sharp } = await import("sharp");
-  await writeFile(join(outputDirectory, `${base}-session-memento.svg`), mementoSvg(analysis.analytics, analysis.trackPoints), "utf8");
-  await sharp(Buffer.from(mementoSvg(analysis.analytics, analysis.trackPoints))).png({ compressionLevel: 9 }).toFile(mementoPath);
+  const svg = mementoSvg(analysis.analytics, analysis.trackPoints);
+  const svgPath = join(outputDirectory, `${base}-session-memento.svg`);
+  await writeFile(svgPath, svg, "utf8");
+  await rasterizeSvg(svg, svgPath, mementoPath);
+  emitProgress("assets", "running", "Session memento is ready.", 0.1);
   const fastestClip = renderFastestAvailable({ ffmpeg, videoCodec, videoPath, outputPath: fastestAvailablePath, span: fastestAvailable, videoDurationSec, preRollSec, postRollSec, syncOffsetMs, syncRate });
+  emitProgress("assets", "running", "Fastest complete lap is ready.", 0.4);
   renderOptComposite({ ffmpeg, videoCodec, videoPath, outputPath: optCompositePath, chunks, syncOffsetMs, syncRate });
   const report: SessionAssetReport = { schemaVersion: 1, command: "session render", outputDirectory, mementoPath, optCompositePath, fastestAvailablePath, manifestPath, fastestSession: { lap: analysis.analytics.fastestLapNumber, timeMs: analysis.analytics.fastestLapMs }, fastestAvailable, video: { path: videoPath, durationSec: videoDurationSec, syncOffsetMs, syncRate }, opt: { sections, estimatedDurationMs: chunks.reduce((sum, chunk) => sum + chunk.durationMs, 0), chunks } };
   writeJsonAtomic(manifestPath, { ...report, fastestAvailableClip: fastestClip, note: analysis.analytics.fastestLapNumber === fastestAvailable.lap ? "The global fastest lap is present in this video." : "The global fastest lap is outside video coverage; fastestAvailable is intentionally labelled separately." });

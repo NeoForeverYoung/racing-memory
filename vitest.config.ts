@@ -16,6 +16,7 @@ export default defineConfig({
     include: [
       "apps/web/src/**/*.{test,spec}.{ts,tsx}",
       "apps/cli/src/**/*.{test,spec}.{ts,tsx}",
+      "apps/desktop/src/**/*.{test,spec}.{ts,tsx}",
       "apps/windows-companion/src/**/*.{test,spec}.{ts,tsx}",
       "packages/**/*.{test,spec}.{ts,tsx}",
       "supabase/functions/**/*.{test,spec}.ts",
