@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createDefaultJob, hashValue, readJobManifest, writeJsonAtomic } from "./jobStore";
+import { createDefaultJob, createDeliveryJob, hashValue, readJobManifest, writeJsonAtomic } from "./jobStore";
 import { runPipeline } from "./pipelineRunner";
 
 describe("jobStore", () => {
@@ -22,6 +22,24 @@ describe("jobStore", () => {
 
   it("uses stable hashes for equivalent values", () => {
     expect(hashValue({ b: 2, a: 1 })).toBe(hashValue({ a: 1, b: 2 }));
+  });
+
+  it("keeps scorecard delivery independent from video steps", () => {
+    const job = createDeliveryJob({
+      bundlePath: "/tmp/session.bundle.json",
+      outputDirectory: "/tmp/delivery",
+      preset: "scorecard",
+    });
+    expect(job.options.deliveryPreset).toBe("scorecard");
+    expect(job.steps.map((step) => step.id)).toEqual([
+      "inspect",
+      "analyze",
+      "report",
+      "insights",
+      "training",
+      "delivery",
+    ]);
+    expect(job.steps.some((step) => step.id === "sync" || step.id === "reel" || step.id === "assets")).toBe(false);
   });
 });
 

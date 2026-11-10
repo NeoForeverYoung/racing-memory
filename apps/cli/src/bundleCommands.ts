@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import type { SessionBundleV1 } from "@lapwing/telemetry-core";
 import { probeVideoDuration } from "./core";
@@ -11,6 +11,7 @@ import {
   writeJsonAtomic,
 } from "./jobStore";
 import { CliError } from "./errors";
+import { readIracingSessionMetadata } from "@lapwing/game-adapter-iracing/parser";
 
 function inferGame(path: string): string {
   return path.toLowerCase().endsWith(".ibt") ? "iracing" : "unknown";
@@ -38,6 +39,9 @@ export async function createBundle(options: {
   ));
 
   const telemetryStat = statSync(telemetryPath);
+  const metadata = telemetryPath.toLowerCase().endsWith(".ibt")
+    ? readIracingSessionMetadata(Uint8Array.from(readFileSync(telemetryPath)).buffer)
+    : undefined;
   const bundle: SessionBundleV1 = {
     schemaVersion: 1,
     sessionId: randomUUID(),
@@ -62,6 +66,7 @@ export async function createBundle(options: {
     }),
     lifecycle: {},
     provenance: { producer: "lapwing-cli" },
+    metadata,
   };
   writeJsonAtomic(outputPath, bundle);
   return bundle;

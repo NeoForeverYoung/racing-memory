@@ -16,7 +16,7 @@ import {
 import { parseDurationSeconds } from "./duration";
 import { CliError, fileError } from "./errors";
 import { createSyntheticIbt } from "@lapwing/game-adapter-iracing/fixture";
-import { createDefaultJob, writeJsonAtomic } from "./jobStore";
+import { createDefaultJob, createDeliveryJob, writeJsonAtomic } from "./jobStore";
 import { readSessionBundle, resolveBundlePath } from "./jobStore";
 import { renderMemoryReel } from "./reel";
 import type { MemoryHighlightKind } from "@lapwing/telemetry-core";
@@ -63,8 +63,26 @@ const SPECS = {
   },
   "delivery run": {
     positionals: 1,
-    valueFlags: [...COMMON_VALUE_FLAGS, "output", "duration", "images", "post-roll", "opt-sections"],
+    valueFlags: [...COMMON_VALUE_FLAGS, "output", "preset", "duration", "images", "post-roll", "opt-sections"],
     booleanFlags: [...COMMON_BOOLEAN_FLAGS, "accept-low-confidence", "resume"],
+  },
+  "delivery generate": {
+    positionals: 0,
+    valueFlags: [
+      ...COMMON_VALUE_FLAGS,
+      "telemetry",
+      "video",
+      "output",
+      "preset",
+      "stable-ms",
+      "timeout-ms",
+      "ffprobe",
+      "duration",
+      "images",
+      "post-roll",
+      "opt-sections",
+    ],
+    booleanFlags: [...COMMON_BOOLEAN_FLAGS, "accept-low-confidence"],
   },
   "coach insights": { positionals: 1, valueFlags: COMMON_VALUE_FLAGS, booleanFlags: COMMON_BOOLEAN_FLAGS },
   run: {
@@ -174,9 +192,10 @@ Usage:
   lapwing memory detect <telemetry>
   lapwing memory reel <session.bundle.json> --duration 60s --output <reel.mp4>
   lapwing memory render <telemetry> <video> --output <directory>
-  lapwing report render <session.bundle.json> --images 4 --output <directory>
+  lapwing report render <session.bundle.json> --images 1 --output <directory>
   lapwing session render <session.bundle.json> --output <directory>
   lapwing delivery run <session.bundle.json> --output <directory>
+  lapwing delivery generate --telemetry <race.ibt> [--video <race.mp4>] --output <session-directory>
   lapwing coach insights <session.bundle.json>
   lapwing run <job.json> [--resume] [--from <step>] [--dry-run]
   lapwing capture watch --provider mock --telemetry <file.ibt> --video <file.mp4> --output <bundle.json>
@@ -210,6 +229,12 @@ delivery run options:
   --post-roll <seconds>     Keep the HUD after the line (default 5)
   --accept-low-confidence   Render even when automatic sync needs review
 
+delivery generate options:
+  --telemetry <file.ibt>    Existing telemetry file
+  --video <file.mp4>        Optional recording
+  --preset <scorecard|full> Scorecard/report only, or all video outputs
+  --output <directory>      New Session directory
+
 fixture ibt options:
   --tick-rate <hz>          Integer samples per second, 1-60 (default 10)
   --lap-duration <seconds>  Synthetic lap length, >= 5 (default scales with duration)
@@ -217,6 +242,62 @@ fixture ibt options:
 Exit codes: 0 success, 2 usage/argument error, 1 runtime failure.
 Errors are one JSON document on stderr: {"schemaVersion":1,"error":{"code","message"}}.
 `;
+}
+
+async function executeDelivery(
+  parsed: ParsedArguments,
+  bundlePath: string,
+  output: string,
+  preset: "scorecard" | "full",
+) {
+  const absoluteBundle = resolve(bundlePath);
+  const destination = resolve(output);
+  mkdirSync(destination, { recursive: true });
+  const bundle = readSessionBundle(absoluteBundle);
+  let suggestion = null;
+  if (preset === "full") {
+    if (bundle.videos.length === 0) {
+      throw new CliError("MISSING_INPUT", "The full delivery preset requires a video. Use --preset scorecard for IBT-only analysis.", 1);
+    }
+    const loaded = loadTelemetry(resolveBundlePath(absoluteBundle, bundle.telemetry.path), tracksFor(parsed));
+    suggestion = suggestSessionSync(bundle, loaded.data);
+    bundle.sync = {
+      syncOffsetMs: suggestion.syncOffsetMs,
+      syncRate: suggestion.syncRate,
+      confidence: suggestion.confidence,
+      evidence: suggestion.evidence,
+      requiresReview: suggestion.requiresReview,
+      anchors: suggestion.anchors,
+    };
+    writeJsonAtomic(absoluteBundle, bundle);
+    if (suggestion.requiresReview && !parsed.flags.has("accept-low-confidence")) {
+      throw new CliError(
+        "SYNC_REVIEW_REQUIRED",
+        "Automatic synchronization needs review. Confirm it in the desktop app or rerun with --accept-low-confidence.",
+        1,
+      );
+    }
+  }
+  const jobPath = resolve(destination, "racing-memory-job.json");
+  const job = createDeliveryJob({
+    bundlePath: absoluteBundle,
+    outputDirectory: destination,
+    preset,
+    jobOptions: {
+      acceptLowConfidence: parsed.flags.has("accept-low-confidence"),
+      durationSeconds: numberOption(parsed, "duration", 60),
+      images: numberOption(parsed, "images", 1),
+      postRollSeconds: numberOption(parsed, "post-roll", 5),
+      optSections: numberOption(parsed, "opt-sections", 10),
+    },
+  });
+  writeJsonAtomic(jobPath, job);
+  const manifest = await runPipeline({
+    manifestPath: jobPath,
+    handlers: createPipelineHandlers(),
+    resume: parsed.flags.has("resume"),
+  });
+  return { bundle: absoluteBundle, jobPath, sync: suggestion, manifest };
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -294,7 +375,7 @@ async function main(argv: string[]): Promise<void> {
   if (name === "report render") {
     const bundlePath = parsed.positional[0];
     if (!bundlePath) throw new CliError("MISSING_INPUT", "report render requires a session bundle.");
-    const images = numberOption(parsed, "images", 4);
+    const images = numberOption(parsed, "images", 1);
     if (!Number.isInteger(images) || images < 0 || images > 100) {
       throw new CliError("INVALID_ARGUMENT", "--images must be an integer between 0 and 100.");
     }
@@ -330,50 +411,51 @@ async function main(argv: string[]): Promise<void> {
     if (!bundlePath || !output) {
       throw new CliError("MISSING_INPUT", "delivery run requires a session bundle and --output <directory>.");
     }
-    const absoluteBundle = resolve(bundlePath);
-    const destination = resolve(output);
-    mkdirSync(destination, { recursive: true });
-    const bundle = readSessionBundle(absoluteBundle);
-    const loaded = loadTelemetry(resolveBundlePath(absoluteBundle, bundle.telemetry.path), tracksFor(parsed));
-    const suggestion = suggestSessionSync(bundle, loaded.data);
-    // Always persist the evaluated timeline.  Captured sessions retain their
-    // two OBS/iRacing anchors; imported sessions are explicitly marked for
-    // review when timestamp-only alignment is all we have.
-    bundle.sync = {
-      syncOffsetMs: suggestion.syncOffsetMs,
-      syncRate: suggestion.syncRate,
-      confidence: suggestion.confidence,
-      evidence: suggestion.evidence,
-      requiresReview: suggestion.requiresReview,
-      anchors: suggestion.anchors,
-    };
-    writeJsonAtomic(absoluteBundle, bundle);
-    if (suggestion.requiresReview && !parsed.flags.has("accept-low-confidence")) {
-      throw new CliError(
-        "SYNC_REVIEW_REQUIRED",
-        "Automatic synchronization needs review. Confirm it in the desktop app or rerun with --accept-low-confidence.",
-        1,
-      );
+    const preset = parsed.values.get("preset") ?? "full";
+    if (preset !== "scorecard" && preset !== "full") {
+      throw new CliError("INVALID_ARGUMENT", "--preset must be scorecard or full.");
     }
-    const jobPath = resolve(destination, "racing-memory-job.json");
-    const job = createDefaultJob({
-      bundlePath: absoluteBundle,
-      outputDirectory: destination,
-      jobOptions: {
-        acceptLowConfidence: parsed.flags.has("accept-low-confidence"),
-        durationSeconds: numberOption(parsed, "duration", 60),
-        images: numberOption(parsed, "images", 4),
-        postRollSeconds: numberOption(parsed, "post-roll", 5),
-        optSections: numberOption(parsed, "opt-sections", 10),
-      },
+    emit(parsed, {
+      schemaVersion: 1,
+      command: name,
+      ...(await executeDelivery(parsed, bundlePath, output, preset)),
+    }, report);
+    return;
+  }
+
+  if (name === "delivery generate") {
+    const telemetry = parsed.values.get("telemetry");
+    const video = parsed.values.get("video");
+    const output = parsed.values.get("output");
+    if (!telemetry || !output) {
+      throw new CliError("MISSING_INPUT", "delivery generate requires --telemetry and --output.");
+    }
+    const rawPreset = parsed.values.get("preset") ?? (video ? "full" : "scorecard");
+    if (rawPreset !== "scorecard" && rawPreset !== "full") {
+      throw new CliError("INVALID_ARGUMENT", "--preset must be scorecard or full.");
+    }
+    if (rawPreset === "full" && !video) {
+      throw new CliError("MISSING_INPUT", "--preset full requires --video.");
+    }
+    const sessionDirectory = resolve(output);
+    mkdirSync(sessionDirectory, { recursive: true });
+    const bundlePath = resolve(sessionDirectory, "session.bundle.json");
+    const bundle = await createBundle({
+      telemetryPath: telemetry,
+      videoPaths: video ? [video] : [],
+      outputPath: bundlePath,
+      stableMs: numberOption(parsed, "stable-ms"),
+      timeoutMs: numberOption(parsed, "timeout-ms"),
+      ffprobe: parsed.values.get("ffprobe"),
     });
-    writeJsonAtomic(jobPath, job);
-    const manifest = await runPipeline({
-      manifestPath: jobPath,
-      handlers: createPipelineHandlers(),
-      resume: parsed.flags.has("resume"),
-    });
-    emit(parsed, { schemaVersion: 1, command: name, bundle: absoluteBundle, jobPath, sync: suggestion, manifest }, report);
+    const delivery = await executeDelivery(parsed, bundlePath, resolve(sessionDirectory, "delivery"), rawPreset);
+    emit(parsed, {
+      schemaVersion: 1,
+      command: name,
+      sessionDirectory,
+      createdBundle: bundle,
+      ...delivery,
+    }, report);
     return;
   }
 

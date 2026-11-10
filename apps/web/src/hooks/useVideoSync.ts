@@ -14,6 +14,7 @@ import { findNearestIndex } from "@/components/video-overlays/overlayUtils";
 import { coverageOf, sessionMsToVideoSec, videoSecToSessionMs, fitVideoTimeline, needsResync, type VideoCoverage } from "@/lib/videoTimeline";
 import { buildPlaylist, groupVideoRecordings, virtualToLocal, localToVirtual, type Playlist, type VideoRecording } from "@/lib/videoPlaylist";
 import { takeStagedGoProVideo, type StagedGoProVideo } from "@/lib/gopro/videoHandoff";
+import { takeStagedDesktopVideo, type StagedDesktopVideo } from "@/lib/desktopSessionHandoff";
 import { createLatestGate } from "@/lib/latestGate";
 
 // Native-shell-only modules (plans 0024/0025), loaded on first use so the web
@@ -324,6 +325,11 @@ export function useVideoSync({ samples, allSamples, currentIndex, onScrub, sessi
       void applyStagedVideo(staged);
       return;
     }
+    const desktopVideo = takeStagedDesktopVideo(sessionFileName);
+    if (desktopVideo) {
+      void applyDesktopVideo(desktopVideo);
+      return;
+    }
 
     loadVideoSync(sessionFileName).then(async (record) => {
       if (!record) {
@@ -517,6 +523,19 @@ export function useVideoSync({ samples, allSamples, currentIndex, onScrub, sessi
     await loadRecording({ key: "gopro-import", label: staged.files[0].name, files: staged.files });
     persistSync(staged.syncOffsetMs, undefined, staged.files[0].name, true);
   }, [loadRecording, persistSync]);
+
+  const applyDesktopVideo = useCallback(async (staged: StagedDesktopVideo) => {
+    syncOffsetMsRef.current = staged.syncOffsetMs;
+    setSyncOffsetMs(staged.syncOffsetMs);
+    syncRateRef.current = staged.syncRate;
+    setSyncRate(staged.syncRate);
+    syncAnchorRef.current = { sessionMs: staged.syncOffsetMs, videoSec: 0 };
+    lapAnchorsRef.current.clear();
+    setRateAnchorCount(0);
+    setIsLocked(staged.lockSync);
+    revokeAllUrls();
+    await applyPlaylist([{ name: staged.fileName, url: staged.url }]);
+  }, [applyPlaylist, revokeAllUrls]);
 
   // Native shell: stream a recording off a connected Insta360 camera. The
   // shell's player streams the file over the camera's Wi-Fi and serves the

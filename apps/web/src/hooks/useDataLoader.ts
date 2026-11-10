@@ -33,7 +33,7 @@ interface UseDataLoaderOptions {
 
 export interface UseDataLoaderReturn {
   /** Main file-load orchestrator. Invoked from drag-drop, file manager, and sample loader. */
-  handleDataLoaded: (parsedData: ParsedData, fileName?: string) => Promise<void>;
+  handleDataLoaded: (parsedData: ParsedData, fileName?: string, options?: { autoAcceptWaypoint?: boolean }) => Promise<void>;
   /** Seed (if needed) and open the bundled sample log, exactly like any saved file. */
   handleLoadSample: () => Promise<void>;
   /** True while the sample log is being seeded/opened (drives the button spinner). */
@@ -169,6 +169,27 @@ export function chooseAutoDetectPath<D>(
 }
 
 /**
+ * iRacing circuit files carry an authoritative lap counter plus lap progress.
+ * A return to the pits can resemble several standing-start drag runs, but a
+ * sequence of full native laps is stronger evidence and must keep waypoint
+ * circuit timing ahead of the drag fallback.
+ */
+export function hasNativeCircuitLapSequence(samples: GpsSample[]): boolean {
+  const laps = new Map<number, { min: number; max: number }>();
+  for (const sample of samples) {
+    const lap = sample.extraFields["custom:lap_number"] ?? sample.extraFields.lap_number;
+    const progress = sample.extraFields.lap_dist_pct ?? sample.extraFields["custom:lap_dist_pct"];
+    if (typeof lap !== "number" || !Number.isFinite(lap) || typeof progress !== "number" || !Number.isFinite(progress) || lap < 1) continue;
+    const key = Math.round(lap);
+    const current = laps.get(key) ?? { min: Infinity, max: -Infinity };
+    current.min = Math.min(current.min, progress);
+    current.max = Math.max(current.max, progress);
+    laps.set(key, current);
+  }
+  return [...laps.values()].filter(({ min, max }) => min <= 0.05 && max >= 0.95).length >= 2;
+}
+
+/**
  * File-load orchestration: connects sessionData (parsing), lapMgmt (lap calc),
  * sessionMeta (per-file kart/setup/weather metadata), and the track-prompt UI.
  *
@@ -213,7 +234,7 @@ export function useDataLoader({
   );
 
   const handleDataLoaded = useCallback(
-    async (parsedData: ParsedData, fileName?: string) => {
+    async (parsedData: ParsedData, fileName?: string, options?: { autoAcceptWaypoint?: boolean }) => {
       sessionData.loadParsedData(parsedData, fileName);
       lapMgmt.setCurrentIndex(0);
       // A previous file's drag state must never leak into this one.
@@ -294,7 +315,11 @@ export function useDataLoader({
         tracksForRaceMode(tracks, parsedData.dovexMetadata?.raceMode),
       );
       setDetectionResult(detection);
-      const path = chooseAutoDetectPath(detection, () => detectDragRuns(parsedData.samples));
+      const nativeCircuitLaps = hasNativeCircuitLapSequence(parsedData.samples);
+      const path = chooseAutoDetectPath(
+        detection,
+        () => nativeCircuitLaps ? null : detectDragRuns(parsedData.samples),
+      );
 
       if (path.kind === "course" && detection) {
         // Auto-detected a real course — apply directly, no prompt needed
@@ -340,7 +365,7 @@ export function useDataLoader({
         // Waypoint mode — apply laps and prompt the user to confirm
         applyCourselessLaps(lapMgmt, detection.laps);
         setDetectedTrack(null);
-        setTrackPromptOpen(true);
+        setTrackPromptOpen(options?.autoAcceptWaypoint !== true);
         return;
       }
 

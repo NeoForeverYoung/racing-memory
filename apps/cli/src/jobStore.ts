@@ -75,12 +75,28 @@ export function createDefaultJob(options: {
   outputDirectory: string;
   jobOptions?: Record<string, unknown>;
 }): JobManifestV1 {
-  return createJobManifest({
-    jobId: randomUUID(),
-    bundlePath: resolve(options.bundlePath),
-    outputDirectory: resolve(options.outputDirectory),
-    jobOptions: options.jobOptions,
-    steps: [
+  return createDeliveryJob({ ...options, preset: "full" });
+}
+
+export function createDeliveryJob(options: {
+  bundlePath: string;
+  outputDirectory: string;
+  preset: "scorecard" | "full";
+  jobOptions?: Record<string, unknown>;
+}): JobManifestV1 {
+  const common = [
+    { id: "inspect", command: "inspect" },
+    { id: "analyze", command: "analyze", dependsOn: ["inspect"] },
+    { id: "report", command: "report render", dependsOn: ["analyze"] },
+    { id: "insights", command: "coach insights", dependsOn: ["analyze"] },
+    { id: "training", command: "training card", dependsOn: ["insights"] },
+  ];
+  const steps = options.preset === "scorecard"
+    ? [
+      ...common,
+      { id: "delivery", command: "delivery manifest", dependsOn: ["report", "training"] },
+    ]
+    : [
       { id: "inspect", command: "inspect" },
       { id: "sync", command: "sync suggest", dependsOn: ["inspect"] },
       { id: "analyze", command: "analyze", dependsOn: ["inspect"] },
@@ -90,7 +106,14 @@ export function createDefaultJob(options: {
       { id: "report", command: "report render", dependsOn: ["analyze"] },
       { id: "insights", command: "coach insights", dependsOn: ["analyze"] },
       { id: "training", command: "training card", dependsOn: ["insights"] },
-    ],
+      { id: "delivery", command: "delivery manifest", dependsOn: ["reel", "assets", "report", "training"] },
+    ];
+  return createJobManifest({
+    jobId: randomUUID(),
+    bundlePath: resolve(options.bundlePath),
+    outputDirectory: resolve(options.outputDirectory),
+    jobOptions: { ...options.jobOptions, deliveryPreset: options.preset },
+    steps,
   });
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Gauge, Map, ListOrdered, BarChart3, FolderOpen, Play, Pause, StepBack, StepForward, Eye, EyeOff, AlertCircle, Wrench, NotebookPen, SlidersHorizontal, Columns2, LifeBuoy, Film } from "lucide-react";
@@ -93,6 +93,7 @@ import type { LeaderboardDescriptor } from "@/lib/leaderboardSession";
 import { buildSharedSessionBundle } from "@/lib/shareSession";
 import { beginFileLoading, endFileLoading } from "@/lib/fileLoadingState";
 import { toast } from "sonner";
+import { stageDesktopVideo, type DesktopSessionDescriptor } from "@/lib/desktopSessionHandoff";
 
 
 type TopPanelView = "raceline" | "laptable" | "graphview" | "coach" | "memory" | "tools" | "setups" | "notes";
@@ -393,6 +394,42 @@ export default function Index() {
     allTracks, gpsCenter,
     dragDetection, dragDistanceFt, applyDragDistance, clearDragSession, handleUseWaypoint,
   } = dataLoader;
+  const desktopSessionLoaded = useRef<string | null>(null);
+  const desktopHandleDataLoaded = useRef(handleDataLoaded);
+
+  useEffect(() => {
+    desktopHandleDataLoaded.current = handleDataLoaded;
+  }, [handleDataLoaded]);
+
+  useEffect(() => {
+    const token = new URLSearchParams(location.search).get("desktopSession");
+    if (!token || desktopSessionLoaded.current === token) return;
+    desktopSessionLoaded.current = token;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/session/${encodeURIComponent(token)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Desktop Session 不可用（${response.status}）`);
+        const descriptor = await response.json() as DesktopSessionDescriptor;
+        const telemetry = await fetch(descriptor.telemetryUrl, { cache: "no-store" });
+        if (!telemetry.ok) throw new Error(`无法读取 IBT（${telemetry.status}）`);
+        const blob = await telemetry.blob();
+        const parsed = await parseDatalogFile(new File([blob], descriptor.telemetryFileName));
+        if (cancelled) return;
+        stageDesktopVideo(descriptor);
+        await desktopHandleDataLoaded.current(parsed, descriptor.telemetryFileName, {
+          autoAcceptWaypoint: descriptor.autoUseWaypoint === true,
+        });
+        setTopPanelView("raceline");
+      } catch (error) {
+        desktopSessionLoaded.current = null;
+        toast.error(error instanceof Error ? error.message : "无法打开 Desktop Session");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search]);
 
   // Assigning a course from the header TrackEditor also stands down an active
   // drag session (its metadata tag is cleared by handleSelectionChange itself).

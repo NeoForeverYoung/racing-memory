@@ -13,4 +13,6 @@ serde_json = "1"
 tauri = { version = "2", features = [] }
 base64 = "0.22"
 tungstenite = { version = "0.24", default-features = false, features = ["handshake"] }
+rand = "0.8"
+sha2 = "0.10"
 

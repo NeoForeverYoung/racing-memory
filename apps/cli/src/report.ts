@@ -14,6 +14,7 @@ import { readSessionBundle } from "./jobStore";
 import { loadTelemetry } from "./core";
 import { emitProgress } from "./progress";
 import { rasterizeSvg } from "./svgRasterizer";
+import { selectTrainingCard } from "./trainingCard";
 
 function applyIracingNativeLapTiming(
   analytics: SessionAnalytics,
@@ -39,6 +40,7 @@ export interface SessionAnalysisResult {
   analytics: SessionAnalytics;
   trackPoints: Array<{ lat: number; lon: number }>;
   drivingInsights: DrivingInsightsResult;
+  laps: Array<{ lapNumber: number; lapTimeMs: number; incomplete?: boolean }>;
 }
 
 async function reportTrackPoints(
@@ -82,6 +84,7 @@ export async function analyzeBundle(bundlePath: string): Promise<SessionAnalysis
     analytics,
     trackPoints: await reportTrackPoints(loaded),
     drivingInsights: generateDrivingInsights(loaded.data.samples, loaded.laps),
+    laps: loaded.laps.map(({ lapNumber, lapTimeMs, incomplete }) => ({ lapNumber, lapTimeMs, incomplete })),
   };
 }
 
@@ -101,7 +104,13 @@ export async function renderReport(
     detail: insight.advice,
     confidence: insight.confidence === "high" ? 0.9 : insight.confidence === "medium" ? 0.65 : 0.35,
   }));
-  const input = { ...analysis, insights: reportInsights };
+  const training = selectTrainingCard(analysis.drivingInsights);
+  const input = {
+    ...analysis,
+    insights: reportInsights,
+    trainingCard: training.card,
+    generatedAt: new Date().toISOString(),
+  };
   const count = Math.max(0, Math.floor(imageCount));
   for (let index = 0; index < count; index++) {
     const variant = variants[index % variants.length];

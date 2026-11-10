@@ -2,11 +2,14 @@ use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
+use rand::RngCore;
+use sha2::{Digest, Sha256};
 
 mod obs_readiness;
 
@@ -32,6 +35,16 @@ struct CaptureRequest {
 struct DeliveryRequest {
     session_id: String,
     accept_low_confidence: bool,
+    preset: String,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportGenerateRequest {
+    telemetry_path: String,
+    video_path: Option<String>,
+    preset: String,
+    accept_low_confidence: bool,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -40,6 +53,18 @@ struct LocalSessionAsset {
     kind: String,
     path: String,
     available: bool,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    group: Option<String>,
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    media_type: Option<String>,
+    #[serde(default)]
+    order: Option<i32>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -116,6 +141,8 @@ struct BundleMetadata {
 struct BundleSync {
     confidence: String,
     requires_review: bool,
+    sync_offset_ms: Option<f64>,
+    sync_rate: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -131,6 +158,25 @@ struct BundleDocument {
     sync: Option<BundleSync>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeliveryManifestDocument {
+    schema_version: u8,
+    items: Vec<DeliveryManifestItem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeliveryManifestItem {
+    role: String,
+    group: String,
+    title: String,
+    description: Option<String>,
+    path: String,
+    media_type: String,
+    order: i32,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopState {
@@ -138,6 +184,7 @@ struct DesktopState {
     sessions: Vec<LocalSessionRecord>,
     engine_ready: bool,
     engine_error: Option<String>,
+    build_info: Option<Value>,
 }
 
 #[derive(Serialize, Clone)]
@@ -259,7 +306,7 @@ fn validate_settings(settings: &DesktopSettings) -> Result<(), String> {
 }
 
 fn save_desktop_settings(settings: &DesktopSettings) -> Result<(), String> {
-    validate_settings(settings)?;
+    required(&settings.data_root, "Racing Memory data folder")?;
     fs::create_dir_all(Path::new(&settings.data_root).join("sessions"))
         .map_err(|error| format!("Cannot create local Session folder: {error}"))?;
     write_json_atomic(&settings_path(), settings)
@@ -393,6 +440,32 @@ where
 }
 
 fn scan_assets(session_directory: &Path) -> Vec<LocalSessionAsset> {
+    let delivery_directory = session_directory.join("delivery");
+    let manifest_path = delivery_directory.join("delivery-manifest.json");
+    if let Ok(manifest) = read_json::<DeliveryManifestDocument>(&manifest_path) {
+        if manifest.schema_version == 1 {
+            let mut declared = manifest.items.into_iter().filter_map(|item| {
+                let relative = Path::new(&item.path);
+                if relative.components().any(|component| !matches!(component, std::path::Component::Normal(_))) {
+                    return None;
+                }
+                let path = delivery_directory.join(relative);
+                Some(LocalSessionAsset {
+                    kind: item.role.clone(),
+                    available: path.is_file(),
+                    path: path.display().to_string(),
+                    title: Some(item.title),
+                    description: item.description,
+                    group: Some(item.group),
+                    role: Some(item.role),
+                    media_type: Some(item.media_type),
+                    order: Some(item.order),
+                })
+            }).collect::<Vec<_>>();
+            declared.sort_by_key(|item| item.order.unwrap_or(i32::MAX));
+            return declared;
+        }
+    }
     let roots = [
         ("session memento", session_directory.join("delivery").join("session-assets")),
         ("report", session_directory.join("delivery").join("report")),
@@ -417,6 +490,12 @@ fn scan_assets(session_directory: &Path) -> Vec<LocalSessionAsset> {
                 kind: kind.to_owned(),
                 available: true,
                 path: path.display().to_string(),
+                title: None,
+                description: None,
+                group: None,
+                role: None,
+                media_type: None,
+                order: None,
             });
         }
     }
@@ -559,6 +638,7 @@ fn get_desktop_state() -> DesktopState {
         sessions,
         engine_ready: engine_error.is_none(),
         engine_error,
+        build_info: resources_dir().ok().and_then(|directory| read_json::<Value>(&directory.join("build-info.json")).ok()),
     }
 }
 
@@ -621,6 +701,81 @@ fn start_capture(app: AppHandle, request: CaptureRequest) -> Result<(), String> 
         // Always signal termination so the UI clears its busy state even when
         // the engine exits without a usable error event.
         event(&app, "capture", "info", "Capture engine stopped.");
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn import_and_generate(app: AppHandle, request: ImportGenerateRequest) -> Result<(), String> {
+    let settings = load_settings();
+    if settings.data_root.trim().is_empty() {
+        return Err("Choose a Racing Memory data directory in Settings first.".to_owned());
+    }
+    if let Some(error) = engine_error() {
+        return Err(error);
+    }
+    let telemetry = PathBuf::from(request.telemetry_path.trim());
+    if !telemetry.is_file() {
+        return Err("The selected IBT file is not available.".to_owned());
+    }
+    let video = request.video_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
+    if video.as_ref().is_some_and(|path| !path.is_file()) {
+        return Err("The selected video file is not available.".to_owned());
+    }
+    if request.preset != "scorecard" && request.preset != "full" {
+        return Err("The delivery preset must be scorecard or full.".to_owned());
+    }
+    if request.preset == "full" && video.is_none() {
+        return Err("The full delivery preset requires a video.".to_owned());
+    }
+    let session_directory = Path::new(&settings.data_root)
+        .join("sessions")
+        .join(format!("import-{}", now_millis()));
+    fs::create_dir_all(&session_directory)
+        .map_err(|error| format!("Cannot create Session directory: {error}"))?;
+    let bundle = session_directory.join("session.bundle.json");
+    let mut args = vec![
+        "delivery".into(),
+        "generate".into(),
+        "--telemetry".into(),
+        telemetry.display().to_string(),
+        "--output".into(),
+        session_directory.display().to_string(),
+        "--preset".into(),
+        request.preset,
+    ];
+    if let Some(path) = video {
+        args.push("--video".into());
+        args.push(path.display().to_string());
+    }
+    if request.accept_low_confidence {
+        args.push("--accept-low-confidence".into());
+    }
+    let progress_file = session_directory.join("delivery-progress.ndjson");
+    event(&app, "delivery", "info", "Importing existing telemetry and generating race assets.");
+    std::thread::spawn(move || {
+        match run_sidecar(app.clone(), "delivery", args, None, Some(progress_file)) {
+            Ok(()) => match archive_capture_bundle(&bundle, &session_directory) {
+                Ok(mut record) => {
+                    record.delivery_status = "succeeded".to_owned();
+                    let (card, reason) = read_training_artifact(&session_directory);
+                    record.training_card = card;
+                    record.training_reason = reason;
+                    record.assets = scan_assets(&session_directory);
+                    let session_id = record.id.clone();
+                    match upsert_session(Path::new(&settings.data_root), record) {
+                        Ok(()) => event_for_session(&app, "delivery", "info", "Imported Session is ready.", Some(&session_id)),
+                        Err(error) => event_for_session(&app, "delivery", "error", error, Some(&session_id)),
+                    }
+                }
+                Err(error) => event(&app, "delivery", "error", error),
+            },
+            Err(error) => event(&app, "delivery", "error", error),
+        }
     });
     Ok(())
 }
@@ -690,6 +845,218 @@ fn open_local_path(path: String) -> Result<(), String> {
     }
 }
 
+fn bridge_token() -> String {
+    let mut bytes = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn sha256_file(path: &Path) -> Result<String, String> {
+    let mut file = fs::File::open(path)
+        .map_err(|error| format!("Cannot read Session telemetry: {error}"))?;
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 1024 * 1024];
+    loop {
+        let count = file.read(&mut buffer)
+            .map_err(|error| format!("Cannot verify Session telemetry: {error}"))?;
+        if count == 0 {
+            break;
+        }
+        hash.update(&buffer[..count]);
+    }
+    Ok(format!("sha256:{:x}", hash.finalize()))
+}
+
+const ANALYSIS_CSP: &str = "default-src 'self'; script-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:";
+
+fn content_type(path: &Path) -> &'static str {
+    match path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+        "html" => "text/html; charset=utf-8",
+        "js" => "text/javascript; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "json" => "application/json; charset=utf-8",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "ico" => "image/x-icon",
+        "woff2" => "font/woff2",
+        "ibt" => "application/octet-stream",
+        "mp4" => "video/mp4",
+        _ => "application/octet-stream",
+    }
+}
+
+fn write_http_status(stream: &mut TcpStream, status: &str, body: &[u8], mime: &str) -> std::io::Result<()> {
+    write!(stream, "HTTP/1.1 {status}\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nContent-Security-Policy: {ANALYSIS_CSP}\r\nConnection: close\r\n\r\n", body.len())?;
+    stream.write_all(body)
+}
+
+fn parse_range(value: &str, size: u64) -> Option<(u64, u64)> {
+    let raw = value.trim().strip_prefix("bytes=")?;
+    let (start, end) = raw.split_once('-')?;
+    let start = start.parse::<u64>().ok()?;
+    let end = if end.is_empty() { size.saturating_sub(1) } else { end.parse::<u64>().ok()? };
+    (start < size && end >= start).then_some((start, end.min(size.saturating_sub(1))))
+}
+
+fn stream_file(
+    stream: &mut TcpStream,
+    path: &Path,
+    range: Option<&str>,
+) -> std::io::Result<()> {
+    let mut file = fs::File::open(path)?;
+    let size = file.metadata()?.len();
+    if let Some((start, end)) = range.and_then(|value| parse_range(value, size)) {
+        let length = end - start + 1;
+        file.seek(SeekFrom::Start(start))?;
+        write!(
+            stream,
+            "HTTP/1.1 206 Partial Content\r\nContent-Type: {}\r\nContent-Length: {length}\r\nContent-Range: bytes {start}-{end}/{size}\r\nAccept-Ranges: bytes\r\nCache-Control: no-store\r\nContent-Security-Policy: {ANALYSIS_CSP}\r\nConnection: close\r\n\r\n",
+            content_type(path),
+        )?;
+        std::io::copy(&mut file.take(length), stream)?;
+        return Ok(());
+    }
+    write!(
+        stream,
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {size}\r\nAccept-Ranges: bytes\r\nCache-Control: no-store\r\nContent-Security-Policy: {ANALYSIS_CSP}\r\nConnection: close\r\n\r\n",
+        content_type(path),
+    )?;
+    std::io::copy(&mut file, stream)?;
+    Ok(())
+}
+
+fn handle_analysis_request(
+    mut stream: TcpStream,
+    token: &str,
+    web_root: &Path,
+    record: &LocalSessionRecord,
+    sync: Option<&BundleSync>,
+) -> std::io::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+    let mut reader = BufReader::new(stream.try_clone()?);
+    let mut request_line = String::new();
+    reader.read_line(&mut request_line)?;
+    let uri = request_line.split_whitespace().nth(1).unwrap_or("/");
+    let mut range = None;
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 || line == "\r\n" {
+            break;
+        }
+        if let Some(value) = line.strip_prefix("Range:").or_else(|| line.strip_prefix("range:")) {
+            range = Some(value.trim().to_owned());
+        }
+    }
+
+    let api_root = format!("/api/session/{token}");
+    if uri == api_root {
+        let descriptor = serde_json::json!({
+            "telemetryUrl": format!("{api_root}/telemetry"),
+            "telemetryFileName": Path::new(&record.telemetry_path).file_name().and_then(|value| value.to_str()).unwrap_or("session.ibt"),
+            "video": record.video_path.as_ref().filter(|_| record.video_available).map(|path| serde_json::json!({
+                "url": format!("{api_root}/video"),
+                "fileName": Path::new(path).file_name().and_then(|value| value.to_str()).unwrap_or("session.mp4"),
+            })),
+            "sync": sync.map(|value| serde_json::json!({
+                "offsetMs": value.sync_offset_ms.unwrap_or(0.0),
+                "rate": value.sync_rate.unwrap_or(1.0),
+                "confidence": &value.confidence,
+                "requiresReview": value.requires_review,
+            })),
+            "autoUseWaypoint": true,
+        });
+        return write_http_status(&mut stream, "200 OK", descriptor.to_string().as_bytes(), "application/json; charset=utf-8");
+    }
+    if uri == format!("{api_root}/telemetry") {
+        return stream_file(&mut stream, Path::new(&record.telemetry_path), range.as_deref());
+    }
+    if uri == format!("{api_root}/video") {
+        if let Some(path) = record.video_path.as_deref().filter(|_| record.video_available) {
+            return stream_file(&mut stream, Path::new(path), range.as_deref());
+        }
+        return write_http_status(&mut stream, "404 Not Found", b"Video unavailable", "text/plain; charset=utf-8");
+    }
+    if uri.starts_with("/api/") {
+        return write_http_status(&mut stream, "404 Not Found", b"Not found", "text/plain; charset=utf-8");
+    }
+
+    let clean_uri = uri.split('?').next().unwrap_or("/");
+    let relative = clean_uri.trim_start_matches('/');
+    let candidate = if relative.is_empty() { PathBuf::from("index.html") } else { PathBuf::from(relative) };
+    let safe = candidate.components().all(|component| matches!(component, std::path::Component::Normal(_)));
+    let path = if safe && web_root.join(&candidate).is_file() {
+        web_root.join(candidate)
+    } else {
+        web_root.join("index.html")
+    };
+    if !path.is_file() {
+        return write_http_status(&mut stream, "404 Not Found", b"Web analysis bundle missing", "text/plain; charset=utf-8");
+    }
+    stream_file(&mut stream, &path, None)
+}
+
+#[tauri::command]
+fn open_web_analysis(session_id: String) -> Result<String, String> {
+    let settings = load_settings();
+    let record = load_registry(Path::new(&settings.data_root)).sessions.into_iter()
+        .find(|session| session.id == session_id)
+        .ok_or_else(|| "Session not found.".to_owned())?;
+    if !Path::new(&record.telemetry_path).is_file() {
+        return Err("The Session IBT file is no longer available.".to_owned());
+    }
+    if let Some(expected) = record.telemetry_sha256.as_deref() {
+        if sha256_file(Path::new(&record.telemetry_path))? != expected {
+            return Err("The Session IBT file has changed since it was imported. Re-import it before analysis.".to_owned());
+        }
+    }
+    let web_root = resources_dir()?.join("web-analysis");
+    if !web_root.join("index.html").is_file() {
+        return Err("The installed build does not include LapWing Web analysis.".to_owned());
+    }
+    let bundle = read_json::<BundleDocument>(Path::new(&record.bundle_path))?;
+    let sync = bundle.sync;
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|error| format!("Cannot start local analysis service: {error}"))?;
+    listener.set_nonblocking(true)
+        .map_err(|error| format!("Cannot configure local analysis service: {error}"))?;
+    let port = listener.local_addr()
+        .map_err(|error| format!("Cannot read local analysis address: {error}"))?
+        .port();
+    let token = bridge_token();
+    let url = format!("http://127.0.0.1:{port}/?desktopSession={token}&nosw=1");
+    let server_token = token.clone();
+    std::thread::spawn(move || {
+        let mut last_request = Instant::now();
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    last_request = Instant::now();
+                    let _ = handle_analysis_request(stream, &server_token, &web_root, &record, sync.as_ref());
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if last_request.elapsed() > Duration::from_secs(10 * 60) {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    #[cfg(target_os = "windows")]
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", "Start-Process $env:RACING_MEMORY_ANALYSIS_URL"])
+        .env("RACING_MEMORY_ANALYSIS_URL", &url)
+        .spawn()
+        .map_err(|error| format!("Could not open LapWing analysis: {error}"))?;
+    #[cfg(not(target_os = "windows"))]
+    Command::new("open")
+        .arg(&url)
+        .spawn()
+        .map_err(|error| format!("Could not open LapWing analysis: {error}"))?;
+    Ok(url)
+}
+
 #[tauri::command]
 fn run_delivery(app: AppHandle, request: DeliveryRequest) -> Result<(), String> {
     let settings = load_settings();
@@ -705,6 +1072,8 @@ fn run_delivery(app: AppHandle, request: DeliveryRequest) -> Result<(), String> 
         record.bundle_path.clone(),
         "--output".into(),
         output_directory.display().to_string(),
+        "--preset".into(),
+        request.preset,
     ];
     if request.accept_low_confidence {
         args.push("--accept-low-confidence".into());
@@ -750,9 +1119,11 @@ fn main() {
             save_settings,
             rebuild_session_registry,
             start_capture,
+            import_and_generate,
             get_delivery_progress,
             read_image_preview,
             open_local_path,
+            open_web_analysis,
             run_delivery,
         ])
         .run(tauri::generate_context!())
@@ -761,7 +1132,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{scan_assets, LocalSessionAsset};
+    use super::{parse_range, scan_assets, sha256_file, LocalSessionAsset};
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -781,5 +1152,55 @@ mod tests {
         assert_eq!(found[0].kind, "session memento");
         assert!(found[0].available);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn scan_assets_prefers_the_declared_delivery_manifest() {
+        let root = std::env::temp_dir().join(format!(
+            "racing-memory-manifest-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let delivery = root.join("delivery");
+        let report = delivery.join("report");
+        fs::create_dir_all(&report).unwrap();
+        fs::write(report.join("index.html"), "report").unwrap();
+        fs::write(delivery.join("delivery-manifest.json"), r#"{
+          "schemaVersion": 1,
+          "items": [{
+            "id": "report",
+            "role": "report",
+            "group": "report",
+            "title": "完整赛后报告",
+            "path": "report/index.html",
+            "mediaType": "text/html",
+            "order": 10
+          }]
+        }"#).unwrap();
+        let found = scan_assets(&root);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].title.as_deref(), Some("完整赛后报告"));
+        assert_eq!(found[0].group.as_deref(), Some("report"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn parses_bounded_http_byte_ranges() {
+        assert_eq!(parse_range("bytes=10-19", 100), Some((10, 19)));
+        assert_eq!(parse_range("bytes=90-", 100), Some((90, 99)));
+        assert_eq!(parse_range("bytes=100-", 100), None);
+    }
+
+    #[test]
+    fn hashes_session_telemetry_before_exposing_it() {
+        let path = std::env::temp_dir().join(format!(
+            "racing-memory-hash-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        fs::write(&path, "abc").unwrap();
+        assert_eq!(
+            sha256_file(&path).unwrap(),
+            "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        fs::remove_file(path).unwrap();
     }
 }

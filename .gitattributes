@@ -1,1 +1,21 @@
+# Keep source checkouts deterministic across macOS, Linux and Windows.
+* text=auto eol=lf
+
+# Windows command interpreters are the exception; PowerShell accepts LF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets must never be line-ending normalized.
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.webp binary
+*.woff2 binary
+*.wasm binary
+*.ibt binary
+*.mp4 binary
+*.zip binary
+
+# Published portable archives are intentionally versioned through Git LFS.
 release/*.zip filter=lfs diff=lfs merge=lfs -text

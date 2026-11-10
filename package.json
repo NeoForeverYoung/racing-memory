@@ -2,6 +2,7 @@
   "name": "doves-dataviewer",
   "private": true,
   "version": "5.0.0",
+  "packageManager": "bun@1.4.4",
   "description": "Open-source, offline-first motorsport telemetry viewer (Dove's DataViewer / LapWing).",
   "license": "GPL-3.0-or-later",
   "author": "TheAngryRaven",
@@ -12,7 +13,8 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "beta-proxy"
   ],
   "bugs": {
     "url": "https://github.com/TheAngryRaven/DovesDataViewer/issues"
@@ -30,6 +32,7 @@
     "bundle:assert:sim": "bun scripts/assert-sim-bundle.mjs",
     "build:dev": "bun run --cwd apps/web build:dev",
     "build:desktop:win": "bun run --cwd apps/desktop bundle:win",
+    "repo:hygiene": "bun scripts/check-repository-hygiene.mjs",
     "lint": "eslint .",
     "preview": "bun run --cwd apps/web preview",
     "test": "vitest",
@@ -39,6 +42,7 @@
     "coverage:summary": "bun scripts/coverage-summary.mjs",
     "i18n:seed": "bun scripts/seed-translations.mjs",
     "lapwing": "bun apps/cli/src/lapwing.ts",
+    "analysis:serve": "bun scripts/serve-local-analysis.mjs",
     "cli:smoke": "bun scripts/cli-smoke.mjs",
     "typecheck": "tsc -b"
   },

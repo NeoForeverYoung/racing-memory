@@ -353,7 +353,8 @@ Every track has a `short_name` (max 8 characters) used for:
 
 ### Prerequisites
 
-- Node.js 18+ (or [Bun](https://bun.sh))
+- [Bun](https://bun.sh) at the version in `.bun-version`
+- Git LFS
 
 ### Installation
 
@@ -362,8 +363,8 @@ Every track has a `short_name` (max 8 characters) used for:
 git clone https://github.com/your-username/doves-dataviewer.git
 cd doves-dataviewer
 
-# Install dependencies
-bun install
+# Install the exact locked dependency graph
+bun install --frozen-lockfile
 
 # Start development server
 bun run dev
@@ -375,6 +376,9 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 > `bun.lock` is the **only** committed lockfile — CI and the Cloudflare deploy
 > both run `bun install --frozen-lockfile`, so don't add an npm/yarn/pnpm
 > lockfile (a second lockfile drifts and breaks the frozen install).
+> Use Git—not copied working directories or `node_modules`—to collaborate
+> between machines. See the
+> [cross-machine and Windows build standard](docs/development/cross-machine-development.md).
 
 ### Available Scripts
 
@@ -386,6 +390,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `bun run build:full` | Full hardware-compatible build to `apps/web/dist-full/` |
 | `bun run preview` | Preview production build locally |
 | `bun run lint` | Run ESLint |
+| `bun run repo:hygiene` | Reject tracked generated output, competing lockfiles, and non-LFS release ZIPs |
 | `bun run typecheck` | Type-check via `tsc -b` (build mode — follows project references) |
 | `bun run test` | Run Vitest in watch mode (use `bun run test`, **not** `bun test`, which is Bun's own runner) |
 | `bun run test:run` | Run Vitest once (CI-style) |
@@ -595,7 +600,7 @@ break a deploy. Full design: [`docs/plans/0007-dynamic-supabase-branch-db.md`](d
   Preview URL, so a separate thin reverse-proxy Worker owns the beta hostname and
   forwards to the stable `beta` preview (`beta-lapwing.perchwerks.workers.dev`).
   It lives in [`beta-proxy/`](beta-proxy/README.md) and is deployed on its own
-  (`cd beta-proxy && npm install && npm run deploy`). Keep Cloudflare Access
+  (`cd beta-proxy && bun run deploy`). Keep Cloudflare Access
   **off** on the upstream preview URL — see that README.
 
 ### Android app (Tauri)

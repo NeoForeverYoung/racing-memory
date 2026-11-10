@@ -21,6 +21,18 @@ const input = {
     { lat: 50, lon: 5 },
     { lat: 50.1, lon: 5.1 },
   ],
+  laps: [
+    { lapNumber: 1, lapTimeMs: 60_123 },
+    { lapNumber: 2, lapTimeMs: 61_877 },
+  ],
+  insights: [{ title: "更早回到油门", detail: "第 2 圈在出弯损失约 0.4 秒。", confidence: 0.9 }],
+  trainingCard: {
+    title: "练习出弯",
+    detail: "集中练习一个区间。",
+    exercise: "连续完成五个干净圈。",
+    completionCriteria: "将损失降低到 0.2 秒。",
+    confidence: "high" as const,
+  },
 };
 
 describe("scorecard renderer", () => {
@@ -36,5 +48,10 @@ describe("scorecard renderer", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("<svg");
     expect(html).not.toContain('src="scorecard');
+    expect(html).toContain("逐圈表现");
+    expect(html).toContain("下次练什么");
+    expect(html).toContain("第 2 圈");
+    expect(html).not.toContain("Machine-readable analytics");
+    expect(html).not.toContain('"sampleCount"');
   });
 });

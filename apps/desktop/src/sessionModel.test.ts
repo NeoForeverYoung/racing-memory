@@ -49,7 +49,7 @@ describe("local desktop session presentation", () => {
     expect(inspect).toMatchObject({ step: "inspect", status: "completed", percent: 100 });
     expect(sync).toMatchObject({ step: "sync", status: "started", percent: 0 });
     expect(reel).toMatchObject({ step: "reel", status: "started", percent: 47 });
-    expect(deliveryOverallPercent({ inspect: inspect!, sync: sync! })).toBe(11);
+    expect(deliveryOverallPercent({ inspect: inspect!, sync: sync! })).toBe(10);
     expect(parseDeliveryProgress("not json")).toBeNull();
   });
 

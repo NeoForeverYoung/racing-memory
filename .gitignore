@@ -1,5 +1,5 @@
-# Logs
-logs
+# Logs and process output
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,7 +7,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+# Dependencies are always installed independently on each OS/architecture.
+# Never copy or commit node_modules between macOS, Windows, Linux or a VM.
+node_modules/
+.pnp
+.pnp.*
 
 # This project uses Bun as its sole package manager (bun.lock is committed).
 # Don't commit an npm/yarn/pnpm lockfile — a second lockfile drifts out of sync
@@ -15,16 +19,27 @@ node_modules
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
-dist
+
+# Generated application and package output
+dist/
 apps/*/dist*
-dist-ssr
+dist-ssr/
+target/
 *.local
 
 # TypeScript incremental build info (created by `tsc -b`)
 *.tsbuildinfo
 
-# Test coverage output (created by `npm run test:coverage`)
-coverage
+# Tool caches and test output
+coverage/
+.cache/
+.turbo/
+.vite/
+.eslintcache
+.stylelintcache
+tmp/
+temp/
+*.tmp
 
 # Large local telemetry/video fixtures used for manual CLI and browser testing.
 docs/data/*.ibt
@@ -47,19 +62,26 @@ apps/web/src/plugins/coaching/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Local Tauri desktop build artifacts. The compiled sidecar, generated
-# schemas, icons and the multi-gigabyte Rust target directory are produced by
-# `tauri dev` / `bun build --compile` on this machine and must never be pushed.
-apps/desktop/src-tauri/target/
+# Local Tauri desktop build artifacts. The compiled sidecar, generated schemas
+# and icons are produced by `tauri dev` / `bun build --compile` on this machine
+# and must never be pushed. Rust target directories are ignored globally above.
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/binaries/
 apps/desktop/src-tauri/icons/
-apps/desktop/src-tauri/Cargo.lock
+
+# Cargo.lock for the Desktop application is intentionally committed. It pins
+# the native dependency graph for reproducible Windows release builds.

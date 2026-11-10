@@ -27,7 +27,7 @@ doesn't change.)
 ## Prerequisites
 
 - The zone **lapwingdata.com** is already managed in this Cloudflare account.
-- Node.js installed locally.
+- The repository-pinned Bun version is installed.
 
 ## Deploy
 
@@ -43,31 +43,30 @@ deploy --dry-run` validation instead. The deploy job needs two repo secrets:
 | `CLOUDFLARE_API_TOKEN` | A token with **Edit Cloudflare Workers** on the account |
 | `CLOUDFLARE_ACCOUNT_ID` | The account that owns the `lapwingdata.com` zone |
 
-The wrangler version is pinned in the workflow (`WRANGLER_VERSION`) so CI runs
-are reproducible — there is no committed lockfile here.
+The wrangler version is pinned in the workflow (`WRANGLER_VERSION`) and package
+scripts. Shared type dependencies are installed from the repository's root
+`bun.lock`; do not create a second lockfile in this directory.
 
 ### Manual
 
 ```bash
 cd beta-proxy
-npm install
 
 # Authenticate (opens a browser; one-time per machine)
-npx wrangler login
+bunx wrangler@4.103.0 login
 
 # Validate config + bundle without deploying
-npm run dry-run
+bun run dry-run
 
 # Deploy for real
-npm run deploy
+bun run deploy
 ```
 
 > **Note:** this project lives inside the `DovesDataViewer` repo, which has its
 > own root `wrangler.jsonc`. Wrangler's config discovery walks *up* the tree and
-> would otherwise pick up that parent config, so the npm scripts (and any direct
-> invocation) must pass `--config ./wrangler.toml`. The `npm run deploy` /
-> `npm run dry-run` scripts already do this — if you call wrangler directly, run
-> `npx wrangler deploy --config ./wrangler.toml`.
+> would otherwise pick up that parent config, so the package scripts (and any
+> direct invocation) must pass `--config ./wrangler.toml`. The `bun run deploy`
+> / `bun run dry-run` scripts already do this.
 
 The `custom_domain` route in [`wrangler.toml`](wrangler.toml) makes Cloudflare
 **automatically provision the DNS record and TLS certificate** for

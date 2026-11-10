@@ -18,6 +18,12 @@ export type LocalSessionAsset = {
   kind: string;
   path: string;
   available: boolean;
+  title?: string | null;
+  description?: string | null;
+  group?: "overview" | "video" | "report" | null;
+  role?: "primary-video" | "supporting-video" | "scorecard" | "report" | null;
+  mediaType?: string | null;
+  order?: number | null;
 };
 
 export type LocalSessionRecord = {
@@ -62,6 +68,12 @@ export type DesktopState = {
   sessions: LocalSessionRecord[];
   engineReady: boolean;
   engineError?: string | null;
+  buildInfo?: {
+    version?: string;
+    gitHash?: string;
+    branch?: string;
+    builtAt?: string;
+  } | null;
 };
 
 export function obsReadinessSummary(
@@ -105,6 +117,7 @@ export const DELIVERY_STEPS = [
   { id: "report", label: "赛后报告与成绩单" },
   { id: "insights", label: "驾驶建议" },
   { id: "training", label: "下次练习卡" },
+  { id: "delivery", label: "整理交付物" },
 ] as const;
 
 export type DeliveryStepId = typeof DELIVERY_STEPS[number]["id"];
@@ -124,7 +137,9 @@ function extension(path: string): string {
 }
 
 export function visibleSessionAssets(assets: LocalSessionAsset[]): LocalSessionAsset[] {
-  return assets.filter((asset) => asset.available && USER_ASSET_EXTENSIONS.has(extension(asset.path)));
+  return assets
+    .filter((asset) => asset.available && USER_ASSET_EXTENSIONS.has(extension(asset.path)))
+    .sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER));
 }
 
 export function isPreviewableImage(path: string): boolean {
@@ -132,6 +147,7 @@ export function isPreviewableImage(path: string): boolean {
 }
 
 export function assetDisplayLabel(asset: LocalSessionAsset): string {
+  if (asset.title) return asset.title;
   const name = asset.path.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
   if (name.includes("fastest-available-lap")) return "最快完整圈";
   if (name.includes("opt-composite")) return "OPT 合成圈";

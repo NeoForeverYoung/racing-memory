@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Lap, TrackCourseSelection } from "@/types/racing";
+import type { GpsSample, Lap, TrackCourseSelection } from "@/types/racing";
 import {
   applyCourselessLaps,
   chooseAutoDetectPath,
   detectionMetadataPatch,
   dragMetadataPatch,
+  hasNativeCircuitLapSequence,
   shouldRestoreDragSession,
 } from "./useDataLoader";
 
@@ -93,6 +94,26 @@ describe("chooseAutoDetectPath (load precedence, plan 0022)", () => {
   it("falls back to waypoint, then to the nearest-track prompt", () => {
     expect(chooseAutoDetectPath({ isWaypointMode: true }, () => null)).toEqual({ kind: "waypoint" });
     expect(chooseAutoDetectPath(null, () => null)).toEqual({ kind: "nearest" });
+  });
+});
+
+describe("hasNativeCircuitLapSequence", () => {
+  const native = (lap: number, progress: number) => ({
+    extraFields: { "custom:lap_number": lap, lap_dist_pct: progress },
+  }) as unknown as GpsSample;
+
+  it("recognises multiple complete iRacing-native laps", () => {
+    expect(hasNativeCircuitLapSequence([
+      native(1, 0.01), native(1, 0.99),
+      native(2, 0.01), native(2, 0.99),
+    ])).toBe(true);
+  });
+
+  it("does not suppress drag detection for partial or single-lap data", () => {
+    expect(hasNativeCircuitLapSequence([
+      native(1, 0.2), native(1, 0.8),
+      native(2, 0.01), native(2, 0.99),
+    ])).toBe(false);
   });
 });
 

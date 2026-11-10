@@ -68,6 +68,12 @@ app's deep paths.
    its plan number in the message** (e.g. `plan 0004:` prefix or `(plan 0004)`). The
    point is to preserve how and *why* something was built so we don't re-research it
    from scratch — see `docs/plans/README.md`.
+9. **Git is the cross-machine boundary.** Never copy or mirror `.git`,
+   `node_modules`, `dist*`, `target`, caches, or a whole working tree between
+   macOS, Windows, Linux, or a VM. Each clone installs pinned dependencies
+   locally. Parallels builds use a guest-local NTFS clone and
+   `prlctl exec --current-user` for Desktop/Edge validation. Full procedure:
+   **→ `docs/development/cross-machine-development.md`**.
 
 ---
 
@@ -467,14 +473,17 @@ README "Deployment".
 
 ## Commands
 
-**Package manager: Bun (only).** `bun.lock` is the **sole committed lockfile**; CI
+**Package manager: Bun (only), pinned by `.bun-version`.** `bun.lock` is the
+**sole committed JavaScript lockfile**; CI
 and Cloudflare run `bun install --frozen-lockfile`. Do **not** add an npm/yarn/pnpm
-lockfile. Run scripts with `bun run <script>` — note `bun run test` (Vitest), **not**
+lockfile. The Desktop app also commits its Rust `Cargo.lock`. Run scripts with
+`bun run <script>` — note `bun run test` (Vitest), **not**
 `bun test` (Bun's own runner). After adding/removing a dep, `bun install` + commit
 `bun.lock`.
 
 ```bash
 bun install        # Install deps (--frozen-lockfile in CI)
+bun run repo:hygiene # Reject tracked generated files and competing lockfiles
 bun run dev        # Dev server on :8080
 bun run build      # Production build → dist/
 bun run lint       # ESLint

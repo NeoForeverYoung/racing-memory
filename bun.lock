@@ -126,6 +126,13 @@
         "@lapwing/media": "workspace:*",
       },
     },
+    "beta-proxy": {
+      "name": "beta-proxy",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250601.0",
+      },
+    },
     "packages/game-adapter-f1": {
       "name": "@lapwing/game-adapter-f1",
       "version": "5.0.0",
@@ -350,6 +357,8 @@
     "@babel/types": ["@babel/types@7.29.0", "https://mirrors.tencent.com/npm/@babel/types/-/types-7.29.0.tgz", { "dependencies": { "@babel/helper-string-parser": "^7.27.1", "@babel/helper-validator-identifier": "^7.28.5" } }, "sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A=="],
 
     "@bcoe/v8-coverage": ["@bcoe/v8-coverage@1.0.2", "https://mirrors.tencent.com/npm/@bcoe/v8-coverage/-/v8-coverage-1.0.2.tgz", {}, "sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA=="],
+
+    "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20260702.1", "https://mirrors.tencent.com/npm/@cloudflare/workers-types/-/workers-types-4.20260702.1.tgz", {}, "sha512-mOhf5TUEB1m2vPrxtqoIGfz0fUC9xyxRDx5gWHy5s+OCo6dcV+g7wI1R7gYCMFohhqF/2y2xeKVwMwCJjfn/WA=="],
 
     "@dnd-kit/accessibility": ["@dnd-kit/accessibility@3.1.1", "https://mirrors.tencent.com/npm/@dnd-kit/accessibility/-/accessibility-3.1.1.tgz", { "dependencies": { "tslib": "^2.0.0" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw=="],
 
@@ -942,6 +951,8 @@
     "balanced-match": ["balanced-match@1.0.2", "https://mirrors.tencent.com/npm/balanced-match/-/balanced-match-1.0.2.tgz", {}, "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="],
 
     "baseline-browser-mapping": ["baseline-browser-mapping@2.9.17", "https://mirrors.tencent.com/npm/baseline-browser-mapping/-/baseline-browser-mapping-2.9.17.tgz", { "bin": "dist/cli.js" }, "sha512-agD0MgJFUP/4nvjqzIB29zRPUuCF7Ge6mEv9s8dHrtYD7QWXRcx75rOADE/d5ah1NI+0vkDl0yorDd5U852IQQ=="],
+
+    "beta-proxy": ["beta-proxy@workspace:beta-proxy"],
 
     "binary-extensions": ["binary-extensions@2.3.0", "https://mirrors.tencent.com/npm/binary-extensions/-/binary-extensions-2.3.0.tgz", {}, "sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw=="],
 

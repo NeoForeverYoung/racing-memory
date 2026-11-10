@@ -1,5 +1,6 @@
 export * from "./canonical";
 export * from "./channels";
+export * from "./deliveryManifest";
 export * from "./gforceCalculation";
 export * from "./gpsQualityFilter";
 export * from "./jobManifest";
