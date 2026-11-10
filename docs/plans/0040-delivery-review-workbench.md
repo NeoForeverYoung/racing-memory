@@ -438,8 +438,11 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   bootstrap redirect 强制 Edge 完成首次真实导航。真机复测证明 URL 与 token 均正确，
   但也暴露异步 handoff 在首次页面生命周期清理时会被取消，而提前写入的 loaded ref
   会阻止同一 token 重试；loaded 标记现延后到解析和载入全部成功之后，生命周期重启可
-  安全重试。要求再次验证首次点击直接进入 Session、IBT 只请求一次，并逐项点击结果页
-  与路径选择器。
+  安全重试。Edge CDP 网络日志随后给出更直接的失败证据：Session descriptor 返回 200，
+  但 117 MB telemetry 响应以 `ERR_CONTENT_LENGTH_MISMATCH` 中断。loopback listener
+  为轮询 accept 使用 non-blocking；Windows 上接受的连接现显式恢复 blocking，避免大
+  IBT/视频在首次 `WouldBlock` 时截断。要求再次验证首次点击直接进入 Session、IBT 只
+  请求一次，并逐项点击结果页与路径选择器。
 
 ## 10. 触点
 

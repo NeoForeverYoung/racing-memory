@@ -982,6 +982,10 @@ fn handle_analysis_request(
     record: &LocalSessionRecord,
     sync: Option<&BundleSync>,
 ) -> std::io::Result<()> {
+    // Windows can inherit the listener's non-blocking mode on accepted sockets.
+    // Large telemetry/video responses then stop at the first WouldBlock even
+    // though their Content-Length advertises the complete file.
+    stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;
     let mut reader = BufReader::new(stream.try_clone()?);
     let mut request_line = String::new();
