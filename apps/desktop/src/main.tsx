@@ -502,6 +502,8 @@ function App() {
           pickImportVideoPath={() => void pickLocalPath("videoFile", importVideoPath, setImportVideoPath)}
           importPreset={importPreset}
           setImportPreset={setImportPreset}
+          allowLowConfidence={allowLowConfidence}
+          setAllowLowConfidence={setAllowLowConfidence}
           importing={busy === "import"}
           onImport={importAndGenerate}
           onSettings={() => setView("settings")}
@@ -538,7 +540,7 @@ function NavButton({ active, label, icon, count, onClick }: { active: boolean; l
   return <button className={active ? "nav active" : "nav"} type="button" onClick={onClick}><span>{icon}</span>{label}{count != null && <b>{count}</b>}</button>;
 }
 
-function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, importTelemetryPath, setImportTelemetryPath, pickImportTelemetryPath, importVideoPath, setImportVideoPath, pickImportVideoPath, importPreset, setImportPreset, importing, onImport, onSettings, onSession }: {
+function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, importTelemetryPath, setImportTelemetryPath, pickImportTelemetryPath, importVideoPath, setImportVideoPath, pickImportVideoPath, importPreset, setImportPreset, allowLowConfidence, setAllowLowConfidence, importing, onImport, onSettings, onSession }: {
   state: DesktopState;
   obsReadiness: ObsReadiness | null;
   password: string;
@@ -557,6 +559,8 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
   pickImportVideoPath: () => void;
   importPreset: "scorecard" | "full";
   setImportPreset: (value: "scorecard" | "full") => void;
+  allowLowConfidence: boolean;
+  setAllowLowConfidence: (value: boolean) => void;
   importing: boolean;
   onImport: () => void;
   onSettings: () => void;
@@ -597,6 +601,7 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
           <button className={importPreset === "scorecard" ? "selected" : ""} type="button" onClick={() => setImportPreset("scorecard")}>成绩单与报告</button>
           <button className={importPreset === "full" ? "selected" : ""} type="button" disabled={!importVideoPath.trim()} onClick={() => setImportPreset("full")}>完整视频交付</button>
         </div>
+        {importPreset === "full" && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />若录像时间轴无法自动确认，允许继续生成；完成后我会在 LapWing 中复核同步。</label>}
         <button className="primary" type="button" disabled={importing || !importTelemetryPath.trim() || importPreset === "full" && !importVideoPath.trim()} onClick={onImport}>{importing ? "正在导入并生成…" : "创建 Session 并生成"}</button>
       </div>
     </section>
