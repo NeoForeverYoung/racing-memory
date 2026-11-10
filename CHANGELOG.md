@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Racing Memory Desktop now separates starting a Session, importing files, recording, reviewing a Session, opening deliverables, and regenerating output into focused work areas.** The workbench no longer combines forms, live capture readiness, analysis conclusions, generation controls, progress and file cards on the same screen. Import failures return to the preserved import form, progress has an explicit dedicated page, and Session tabs retain the current Session while moving between overview, deliverables and regeneration. (Plan 0042.)
+
 ## [5.1.1] - 2026-11-10
 
 ### Fixed

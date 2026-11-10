@@ -27,9 +27,13 @@ import {
   type LocalSessionRecord,
   type ObsReadiness,
 } from "./sessionModel";
+import {
+  INITIAL_DESKTOP_NAVIGATION,
+  reduceDesktopNavigation,
+  type DesktopNavigation,
+} from "./desktopNavigation";
 import "./styles.css";
 
-type View = "home" | "library" | "session" | "settings" | "progress";
 type AppEvent = { kind: "capture" | "delivery"; level: "info" | "error"; message: string; at: string; sessionId?: string };
 type PathPickerKind = "telemetryFile" | "videoFile" | "directory";
 type ImportProgressSnapshot = { lines: string[]; sessionId?: string; error?: string };
@@ -68,8 +72,7 @@ function readStoredPhase(): CapturePhase | null {
 
 function App() {
   const [state, setState] = useState<DesktopState>(EMPTY_STATE);
-  const [view, setView] = useState<View>("home");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [navigation, setNavigation] = useState<DesktopNavigation>(INITIAL_DESKTOP_NAVIGATION);
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [obsPassword, setObsPassword] = useState("");
   const [importTelemetryPath, setImportTelemetryPath] = useState("");
@@ -87,9 +90,13 @@ function App() {
   const obsPasswordRef = useRef("");
   const busyRef = useRef(busy);
   busyRef.current = busy;
+  const { view, sessionId: selectedId, sessionSection } = navigation;
+  const navigate = (event: Parameters<typeof reduceDesktopNavigation>[1]) => {
+    setNavigation((current) => reduceDesktopNavigation(current, event));
+  };
 
   const selected = useMemo(
-    () => state.sessions.find((session) => session.id === selectedId) ?? state.sessions[0] ?? null,
+    () => state.sessions.find((session) => session.id === selectedId) ?? null,
     [selectedId, state.sessions],
   );
 
@@ -97,7 +104,9 @@ function App() {
     try {
       const next = await invoke<DesktopState>("get_desktop_state");
       setState(next);
-      setSelectedId((current) => current && next.sessions.some((session) => session.id === current) ? current : next.sessions[0]?.id ?? null);
+      setNavigation((current) => current.sessionId && !next.sessions.some((session) => session.id === current.sessionId)
+        ? INITIAL_DESKTOP_NAVIGATION
+        : current);
     } catch (error) {
       setMessage(String(error));
     }
@@ -115,10 +124,6 @@ function App() {
       if (payload.kind === "capture") {
         const phase = parseCaptureEvent(payload.message);
         if (phase) setCapturePhase(phase);
-      }
-      if (payload.sessionId) {
-        setSelectedId(payload.sessionId);
-        setView("session");
       }
       if (payload.level === "error") {
         setMessage(payload.message);
@@ -165,17 +170,16 @@ function App() {
           setMessage(snapshot.error);
           setBusy(null);
           setImportProgressId(null);
-          setView("home");
+          navigate({ type: "importFailed" });
           return;
         }
         if (snapshot.sessionId) {
           const next = await invoke<DesktopState>("get_desktop_state");
           if (cancelled) return;
           setState(next);
-          setSelectedId(snapshot.sessionId);
           setBusy(null);
           setImportProgressId(null);
-          setView("session");
+          navigate({ type: "importCompleted", sessionId: snapshot.sessionId });
         }
       } catch (error) {
         if (!cancelled) setMessage(String(error));
@@ -226,7 +230,7 @@ function App() {
   }, [busy, selectedId]);
 
   useEffect(() => {
-    if (view !== "home" && view !== "settings") return;
+    if (view !== "dashboard" && view !== "capture" && view !== "settings") return;
     let cancelled = false;
     const probe = async () => {
       try {
@@ -266,7 +270,7 @@ function App() {
   // Probe on the home view even when the UI has no active flag: a capture that
   // started before this code was loaded still has OBS writing a video.
   useEffect(() => {
-    if (!state.settings.obsUrl.trim() || view !== "home") return;
+    if (!state.settings.obsUrl.trim() || view !== "capture") return;
     let cancelled = false;
     const sockets = new Set<WebSocket>();
     const poll = () => {
@@ -337,8 +341,7 @@ function App() {
   };
 
   const chooseSession = (session: LocalSessionRecord) => {
-    setSelectedId(session.id);
-    setView("session");
+    navigate({ type: "openSession", sessionId: session.id });
     setAllowLowConfidence(false);
     setDeliveryProgress({});
   };
@@ -361,6 +364,7 @@ function App() {
 
   const generateDelivery = async (preset: "scorecard" | "full") => {
     if (!selected) return;
+    navigate({ type: "startDelivery", sessionId: selected.id });
     setBusy("delivery");
     setDeliveryProgress({});
     setMessage(null);
@@ -377,7 +381,7 @@ function App() {
     if (!importTelemetryPath.trim()) return;
     setBusy("import");
     setDeliveryProgress({});
-    setView("progress");
+    navigate({ type: "startImport" });
     setMessage(null);
     try {
       const progressId = await invoke<string>("import_and_generate", {
@@ -392,7 +396,7 @@ function App() {
     } catch (error) {
       setBusy(null);
       setImportProgressId(null);
-      setView("home");
+      navigate({ type: "importFailed" });
       setMessage(String(error));
     }
   };
@@ -404,7 +408,7 @@ function App() {
       const next = await invoke<DesktopState>("save_settings", { settings });
       setState(next);
       setBusy(null);
-      setView("home");
+      navigate({ type: "open", view: "dashboard" });
     } catch (error) {
       setBusy(null);
       setMessage(String(error));
@@ -416,7 +420,6 @@ function App() {
     try {
       const sessions = await invoke<LocalSessionRecord[]>("rebuild_session_registry");
       setState((current) => ({ ...current, sessions }));
-      setSelectedId(sessions[0]?.id ?? null);
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -471,29 +474,29 @@ function App() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <button className="brand" type="button" onClick={() => setView("home")}><span>R</span> Racing Memory</button>
+      <button className="brand" type="button" onClick={() => navigate({ type: "open", view: "dashboard" })}><span>R</span> Racing Memory</button>
       <div className="engine-status"><i className={state.engineReady ? "good" : "bad"} />{state.engineReady ? "本地引擎已就绪" : "本地引擎需要检查"}</div>
     </header>
     <div className="workspace">
       <nav className="sidebar" aria-label="主导航">
-        <NavButton active={view === "home"} onClick={() => setView("home")} label="首页" icon="⌂" />
-        <NavButton active={view === "library"} onClick={() => setView("library")} label="历史 Session" icon="▤" count={state.sessions.length || undefined} />
-        <NavButton active={view === "settings"} onClick={() => setView("settings")} label="设置" icon="⚙" />
+        <NavButton active={view === "dashboard"} onClick={() => navigate({ type: "open", view: "dashboard" })} label="工作台" icon="⌂" />
+        <NavButton active={view === "create" || view === "import" || view === "capture" || view === "importProgress"} onClick={() => navigate({ type: "open", view: "create" })} label="新建 Session" icon="+" disabled={busy === "import"} />
+        <NavButton active={view === "library" || view === "session"} onClick={() => navigate({ type: "open", view: "library" })} label="历史 Session" icon="▤" count={state.sessions.length || undefined} disabled={busy === "import"} />
+        <NavButton active={view === "settings"} onClick={() => navigate({ type: "open", view: "settings" })} label="设置" icon="⚙" disabled={busy === "import"} />
         <p>所有分析、视频处理和数据归档都在这台电脑完成。原始录像不会被复制进 Racing Memory。</p>
       </nav>
       <section className="content">
         {message && <div className="notice error"><span>{message}</span><button type="button" onClick={() => setMessage(null)}>关闭</button></div>}
-        {view === "home" && <Home
+        {view === "dashboard" && <Dashboard
           state={state}
-          obsReadiness={obsReadiness}
-          password={obsPassword}
-          setPassword={setObsPassword}
-          canCapture={canCapture}
-          capturing={capturing}
-          presentation={presentation}
-          recordingStats={recordingStats}
-          onResetCapture={resetCaptureState}
-          onCapture={startCapture}
+          onCreate={() => navigate({ type: "open", view: "create" })}
+          onSession={chooseSession}
+        />}
+        {view === "create" && <CreateSession
+          onImport={() => navigate({ type: "open", view: "import" })}
+          onCapture={() => navigate({ type: "open", view: "capture" })}
+        />}
+        {view === "import" && <ImportSession
           importTelemetryPath={importTelemetryPath}
           setImportTelemetryPath={setImportTelemetryPath}
           pickImportTelemetryPath={() => void pickLocalPath("telemetryFile", importTelemetryPath, setImportTelemetryPath)}
@@ -506,11 +509,25 @@ function App() {
           setAllowLowConfidence={setAllowLowConfidence}
           importing={busy === "import"}
           onImport={importAndGenerate}
-          onSettings={() => setView("settings")}
-          onSession={chooseSession}
+          onBack={() => navigate({ type: "open", view: "create" })}
+        />}
+        {view === "capture" && <CaptureSession
+          state={state}
+          obsReadiness={obsReadiness}
+          password={obsPassword}
+          setPassword={setObsPassword}
+          canCapture={canCapture}
+          capturing={capturing}
+          presentation={presentation}
+          recordingStats={recordingStats}
+          onResetCapture={resetCaptureState}
+          onCapture={startCapture}
+          onSettings={() => navigate({ type: "open", view: "settings" })}
+          onBack={() => navigate({ type: "open", view: "create" })}
+          events={events}
         />}
         {view === "library" && <Library sessions={state.sessions} selectedId={selected?.id ?? null} busy={busy === "rebuild"} onSelect={chooseSession} onRebuild={rebuildLibrary} />}
-        {view === "progress" && <ImportProgress progress={deliveryProgress} />}
+        {view === "importProgress" && <ImportProgress progress={deliveryProgress} />}
         {view === "session" && <SessionResult
           session={selected}
           busy={busy === "delivery"}
@@ -520,7 +537,9 @@ function App() {
           onGenerate={generateDelivery}
           onOpenWebAnalysis={openWebAnalysis}
           onOpenAsset={openAsset}
-          onBack={() => setView("library")}
+          section={sessionSection}
+          onSection={(section) => navigate({ type: "showSessionSection", section })}
+          onBack={() => navigate({ type: "open", view: "library" })}
         />}
         {view === "settings" && <Settings
           settings={state.settings}
@@ -530,27 +549,41 @@ function App() {
           onPickDirectory={(currentPath, onSelect) => void pickLocalPath("directory", currentPath, onSelect)}
           onSave={saveSettings}
         />}
-        <Activity events={events} />
       </section>
     </div>
   </main>;
 }
 
-function NavButton({ active, label, icon, count, onClick }: { active: boolean; label: string; icon: string; count?: number; onClick: () => void }) {
-  return <button className={active ? "nav active" : "nav"} type="button" onClick={onClick}><span>{icon}</span>{label}{count != null && <b>{count}</b>}</button>;
+function NavButton({ active, label, icon, count, disabled, onClick }: { active: boolean; label: string; icon: string; count?: number; disabled?: boolean; onClick: () => void }) {
+  return <button className={active ? "nav active" : "nav"} type="button" disabled={disabled} onClick={onClick}><span>{icon}</span>{label}{count != null && <b>{count}</b>}</button>;
 }
 
-function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, importTelemetryPath, setImportTelemetryPath, pickImportTelemetryPath, importVideoPath, setImportVideoPath, pickImportVideoPath, importPreset, setImportPreset, allowLowConfidence, setAllowLowConfidence, importing, onImport, onSettings, onSession }: {
+function Dashboard({ state, onCreate, onSession }: {
   state: DesktopState;
-  obsReadiness: ObsReadiness | null;
-  password: string;
-  setPassword: (value: string) => void;
-  canCapture: boolean;
-  capturing: boolean;
-  presentation: CapturePresentation;
-  recordingStats: string | null;
-  onResetCapture: () => void;
-  onCapture: () => void;
+  onCreate: () => void;
+  onSession: (session: LocalSessionRecord) => void;
+}) {
+  return <>
+    <section className="hero">
+      <div><p className="eyebrow">本地比赛回忆</p><h1>从一场比赛开始</h1><p>选择导入已有遥测，或准备录制下一场 iRacing 比赛。工作台只保留你接下来最可能需要的动作。</p></div>
+      <button className="primary" type="button" onClick={onCreate}>新建 Session</button>
+    </section>
+    <section className="section-head"><div><h2>继续复盘</h2><p>最近的本地 Session。</p></div>{state.sessions.length > 0 && <button className="text-button" type="button" onClick={() => onSession(state.sessions[0])}>打开最近一场</button>}</section>
+    {state.sessions.length === 0 ? <EmptyState title="还没有本地 Session" detail="选择“新建 Session”导入已有 IBT，或开始录制下一场比赛。" /> : <div className="session-grid">{state.sessions.slice(0, 3).map((session) => <SessionCard key={session.id} session={session} onClick={() => onSession(session)} />)}</div>}
+  </>;
+}
+
+function CreateSession({ onImport, onCapture }: { onImport: () => void; onCapture: () => void }) {
+  return <>
+    <section className="hero compact"><div><p className="eyebrow">NEW SESSION</p><h1>这场比赛从哪里来？</h1><p>选择一条路径。下一页只展示完成该任务所需的信息。</p></div></section>
+    <section className="task-choice-grid">
+      <button className="task-choice" type="button" onClick={onImport}><span>已有文件</span><h2>导入 IBT 或录像</h2><p>选择已有的 iRacing IBT；录像是可选的。适合补做过去一场比赛的复盘。</p><b>选择导入 →</b></button>
+      <button className="task-choice" type="button" onClick={onCapture}><span>下一场比赛</span><h2>自动录制 iRacing</h2><p>连接 iRacing 与 OBS，比赛结束后自动把本地遥测、录像和交付物整理成 Session。</p><b>准备录制 →</b></button>
+    </section>
+  </>;
+}
+
+function ImportSession({ importTelemetryPath, setImportTelemetryPath, pickImportTelemetryPath, importVideoPath, setImportVideoPath, pickImportVideoPath, importPreset, setImportPreset, allowLowConfidence, setAllowLowConfidence, importing, onImport, onBack }: {
   importTelemetryPath: string;
   setImportTelemetryPath: (value: string) => void;
   pickImportTelemetryPath: () => void;
@@ -563,37 +596,11 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
   setAllowLowConfidence: (value: boolean) => void;
   importing: boolean;
   onImport: () => void;
-  onSettings: () => void;
-  onSession: (session: LocalSessionRecord) => void;
+  onBack: () => void;
 }) {
-  const configured = setupReady(state.settings);
-  const obs = obsReadinessSummary(obsReadiness, state.settings);
   return <>
-    <section className="hero">
-      <div><p className="eyebrow">本地比赛回忆</p><h1>准备下一场比赛</h1><p>完成比赛后，自动将遥测、分析和赛后产物整理为一个本地 Session。</p></div>
-      <button className="secondary" type="button" onClick={onSettings}>检查设置</button>
-    </section>
-    <section className={`capture-card stage-${presentation.stage}`}>
-      <div>
-        <p className="eyebrow">RACE DAY</p>
-        <h2>{presentation.title}</h2>
-        <p>{presentation.detail}</p>
-        {presentation.stage === "recording" && <p className="capture-live"><i />{recordingStats ? `OBS 正在录制 · ${recordingStats}` : "OBS 正在录制…"}</p>}
-        {capturing && presentation.stage !== "recording" && <button className="text-button capture-reset" type="button" onClick={onResetCapture}>重置录制状态</button>}
-      </div>
-      <div className="capture-actions">
-        <label>OBS WebSocket 密码（本次运行）<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="如 OBS 未设置密码可留空" /></label>
-        <button className={presentation.stage === "recording" ? "primary is-recording" : "primary"} type="button" disabled={!canCapture} onClick={onCapture}>{presentation.button}</button>
-      </div>
-    </section>
-    <section className="readiness">
-      <Readiness label="本地引擎" value={state.engineReady ? "已就绪" : "需修复"} good={state.engineReady} detail={state.engineError ?? "自带 FFmpeg 与本地分析 CLI，不含 OBS Studio。"} />
-      <Readiness label="OBS Studio" value={obs.value} good={obs.good} detail={obs.detail} />
-      <Readiness label="iRacing telemetry" value={configured ? "已配置" : "未配置"} good={configured} detail={state.settings.telemetryDirectory || "在设置中选择 IBT 目录"} />
-      <Readiness label="本地数据目录" value={configured ? "已配置" : "未配置"} good={configured} detail={state.settings.dataRoot || "在设置中选择保存位置"} />
-    </section>
-    <section className="import-card">
-      <div className="import-copy"><p className="eyebrow">已有文件</p><h2>从 IBT 和录像重新生成</h2><p>不需要启动 iRacing 或 OBS。IBT 必填；录像可选。成绩单模式只分析遥测，完整模式会额外生成视频交付物。</p></div>
+    <section className="hero compact"><div><p className="eyebrow">IMPORT SESSION</p><h1>导入已有比赛</h1><p>IBT 必填；录像可选。文件保留在原位置，Racing Memory 只保存本地引用和生成的交付物。</p></div><button className="secondary" type="button" onClick={onBack}>返回选择</button></section>
+    <section className="import-card single-task">
       <div className="import-form">
         <PathField label="IBT 文件路径" value={importTelemetryPath} onChange={setImportTelemetryPath} onBrowse={pickImportTelemetryPath} placeholder="C:\Users\...\Documents\iRacing\telemetry\race.ibt" />
         <PathField label="视频文件路径（可选）" value={importVideoPath} onChange={setImportVideoPath} onBrowse={pickImportVideoPath} placeholder="D:\Recordings\race.mp4" />
@@ -605,8 +612,39 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
         <button className="primary" type="button" disabled={importing || !importTelemetryPath.trim() || importPreset === "full" && !importVideoPath.trim()} onClick={onImport}>{importing ? "正在导入并生成…" : "创建 Session 并生成"}</button>
       </div>
     </section>
-    <section className="section-head"><div><h2>继续复盘</h2><p>最近的本地 Session。</p></div>{state.sessions.length > 0 && <button className="text-button" type="button" onClick={() => onSession(state.sessions[0])}>打开最近一场</button>}</section>
-    {state.sessions.length === 0 ? <EmptyState title="还没有本地 Session" detail="先完成一次比赛录制，或在后续版本导入已有 IBT 与录像。" /> : <div className="session-grid">{state.sessions.slice(0, 3).map((session) => <SessionCard key={session.id} session={session} onClick={() => onSession(session)} />)}</div>}
+  </>;
+}
+
+function CaptureSession({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, onSettings, onBack, events }: {
+  state: DesktopState;
+  obsReadiness: ObsReadiness | null;
+  password: string;
+  setPassword: (value: string) => void;
+  canCapture: boolean;
+  capturing: boolean;
+  presentation: CapturePresentation;
+  recordingStats: string | null;
+  onResetCapture: () => void;
+  onCapture: () => void;
+  onSettings: () => void;
+  onBack: () => void;
+  events: AppEvent[];
+}) {
+  const configured = setupReady(state.settings);
+  const obs = obsReadinessSummary(obsReadiness, state.settings);
+  return <>
+    <section className="hero compact"><div><p className="eyebrow">RACE DAY</p><h1>准备录制下一场比赛</h1><p>确认本机依赖后开始；活动记录只在这个工作区显示。</p></div><div className="button-row"><button className="secondary" type="button" onClick={onBack}>返回选择</button><button className="secondary" type="button" onClick={onSettings}>检查设置</button></div></section>
+    <section className={`capture-card stage-${presentation.stage}`}>
+      <div><h2>{presentation.title}</h2><p>{presentation.detail}</p>{presentation.stage === "recording" && <p className="capture-live"><i />{recordingStats ? `OBS 正在录制 · ${recordingStats}` : "OBS 正在录制…"}</p>}{capturing && presentation.stage !== "recording" && <button className="text-button capture-reset" type="button" onClick={onResetCapture}>重置录制状态</button>}</div>
+      <div className="capture-actions"><label>OBS WebSocket 密码（本次运行）<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="如 OBS 未设置密码可留空" /></label><button className={presentation.stage === "recording" ? "primary is-recording" : "primary"} type="button" disabled={!canCapture} onClick={onCapture}>{presentation.button}</button></div>
+    </section>
+    <section className="readiness">
+      <Readiness label="本地引擎" value={state.engineReady ? "已就绪" : "需修复"} good={state.engineReady} detail={state.engineError ?? "自带 FFmpeg 与本地分析 CLI，不含 OBS Studio。"} />
+      <Readiness label="OBS Studio" value={obs.value} good={obs.good} detail={obs.detail} />
+      <Readiness label="iRacing telemetry" value={configured ? "已配置" : "未配置"} good={configured} detail={state.settings.telemetryDirectory || "在设置中选择 IBT 目录"} />
+      <Readiness label="本地数据目录" value={state.settings.dataRoot ? "已配置" : "未配置"} good={Boolean(state.settings.dataRoot)} detail={state.settings.dataRoot || "在设置中选择保存位置"} />
+    </section>
+    <Activity events={events} />
   </>;
 }
 
@@ -643,7 +681,7 @@ function ImportProgress({ progress }: { progress: DeliveryProgress }) {
   </>;
 }
 
-function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLowConfidence, onGenerate, onOpenWebAnalysis, onOpenAsset, onBack }: {
+function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLowConfidence, onGenerate, onOpenWebAnalysis, onOpenAsset, section, onSection, onBack }: {
   session: LocalSessionRecord | null;
   busy: boolean;
   progress: DeliveryProgress;
@@ -652,6 +690,8 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
   onGenerate: (preset: "scorecard" | "full") => void;
   onOpenWebAnalysis: () => void;
   onOpenAsset: (path: string) => void;
+  section: "overview" | "deliverables" | "generate";
+  onSection: (section: "overview" | "deliverables" | "generate") => void;
   onBack: () => void;
 }) {
   if (!session) return <EmptyState title="请选择一个 Session" detail="从历史 Session 中选择一场比赛后，可查看状态并生成本地交付物。" />;
@@ -665,27 +705,41 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
     || (!asset.group && !asset.path.toLowerCase().endsWith(".mp4") && !overviewAssets.includes(asset)),
   );
   return <>
-    <section className="hero"><div><p className="eyebrow">SESSION RESULT</p><h1>{sessionTitle(session)}</h1><p>{sessionDate(session.createdAt)} · {session.game} · {session.sessionType ?? "Session"}</p></div><button className="secondary" type="button" onClick={onBack}>返回历史库</button></section>
-    <section className="result-overview">
-      <div><span>同步状态</span><strong className={session.syncConfidence === "high" ? "good-text" : ""}>{session.syncConfidence ? `${session.syncConfidence} 置信度` : "等待分析"}</strong></div>
-      <div><span>录像</span><strong>{session.videoAvailable ? "原始录像可用" : "仅保存遥测与分析"}</strong></div>
-      <div><span>交付状态</span><strong>{deliveryLabel(session.deliveryStatus)}</strong></div>
-    </section>
-    <section className="analysis-callout"><div><p className="eyebrow">深度复盘</p><h2>在 LapWing 中查看完整遥测</h2><p>打开本场 IBT 的赛道地图、逐圈表现、遥测曲线和同步录像。分析页面由本机提供，不上传数据。</p></div><button className="primary" type="button" onClick={onOpenWebAnalysis}>在 LapWing 中深度分析</button></section>
-    {session.deliveryError && <div className="notice error"><span>{session.deliveryError}</span></div>}
-    {session.trainingCard && <section className="training-card"><div><p className="eyebrow">NEXT PRACTICE</p><h2>下次练什么：{session.trainingCard.title}</h2><p>{session.trainingCard.detail}</p></div><div className="training-metrics"><span>当前损失 <strong>{session.trainingCard.baselineTimeLossMs} ms</strong></span><span>下次目标 <strong>≤ {session.trainingCard.targetTimeLossMs} ms</strong></span><span>证据置信度 <strong>{session.trainingCard.confidence}</strong></span></div><div className="training-copy"><strong>练习方式</strong><p>{session.trainingCard.exercise}</p><strong>完成标准</strong><p>{session.trainingCard.completionCriteria}</p></div></section>}
-    {session.syncRequiresReview && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />我已检查同步，允许低置信度时间轴继续生成。</label>}
-    {showProgress && <DeliveryProgressPanel progress={progress} />}
-    <section className="delivery-card"><div><h2>生成赛后交付物</h2><p>成绩单模式只需要 IBT；完整模式会额外生成最快圈、OPT 和 Racing Memory Reel。所有文件只保存在本机。</p></div><div className="delivery-actions"><button className="secondary" type="button" disabled={busy} onClick={() => onGenerate("scorecard")}>{busy ? "正在生成…" : "生成成绩单与报告"}</button><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={() => onGenerate("full")}>生成完整视频交付</button></div></section>
-    {!session.videoAvailable && <div className="notice"><span>原始录像目前不可用，因此不能生成视频交付物；已归档的遥测和本地 Session 信息仍可保留。</span></div>}
-    <section className="section-head"><div><h2>赛后复盘</h2><p>先看关键结论，再按需要打开视频或完整报告；诊断文件不在这里展示。</p></div><button className="secondary" type="button" onClick={() => onOpenAsset(`${session.sessionDirectory}\\delivery`)}>高级：打开交付目录</button></section>
-    {visibleAssets.length === 0
-      ? <EmptyState title="尚未生成可查看的赛后产物" detail="完成交付后，这里会显示主成绩单、可播放的视频和完整赛后报告。" />
-      : <>
-        <AssetGroup title="一页总结" detail="快速了解这场比赛最重要的结果。" assets={overviewAssets} onOpen={onOpenAsset} />
-        <AssetGroup title="比赛视频" detail="回看精彩片段、最快完整圈和理论 OPT。" assets={videoAssets} onOpen={onOpenAsset} />
-        <AssetGroup title="完整报告" detail="查看逐圈表现、驾驶机会、训练建议和数据质量。" assets={reportAssets} onOpen={onOpenAsset} />
-      </>}
+    <section className="hero workspace-header"><div><p className="eyebrow">SESSION WORKSPACE</p><h1>{sessionTitle(session)}</h1><p>{sessionDate(session.createdAt)} · {session.game} · {session.sessionType ?? "Session"}</p></div><button className="secondary" type="button" onClick={onBack}>返回历史库</button></section>
+    <nav className="session-tabs" aria-label="Session 工作区">
+      <button className={section === "overview" ? "active" : ""} type="button" onClick={() => onSection("overview")}>概览</button>
+      <button className={section === "deliverables" ? "active" : ""} type="button" onClick={() => onSection("deliverables")}>交付物{visibleAssets.length > 0 ? ` (${visibleAssets.length})` : ""}</button>
+      <button className={section === "generate" ? "active" : ""} type="button" onClick={() => onSection("generate")}>生成与重试</button>
+    </nav>
+    {section === "overview" && <>
+      <section className="result-overview">
+        <div><span>同步状态</span><strong className={session.syncConfidence === "high" ? "good-text" : ""}>{session.syncConfidence ? `${session.syncConfidence} 置信度` : "等待分析"}</strong></div>
+        <div><span>录像</span><strong>{session.videoAvailable ? "原始录像可用" : "仅保存遥测与分析"}</strong></div>
+        <div><span>交付状态</span><strong>{deliveryLabel(session.deliveryStatus)}</strong></div>
+      </section>
+      <section className="analysis-callout"><div><p className="eyebrow">深度复盘</p><h2>在 LapWing 中查看完整遥测</h2><p>打开本场 IBT 的赛道地图、逐圈表现、遥测曲线和同步录像。分析页面由本机提供，不上传数据。</p></div><button className="primary" type="button" onClick={onOpenWebAnalysis}>在 LapWing 中深度分析</button></section>
+      {session.trainingCard && <section className="training-card"><div><p className="eyebrow">NEXT PRACTICE</p><h2>下次练什么：{session.trainingCard.title}</h2><p>{session.trainingCard.detail}</p></div><div className="training-metrics"><span>当前损失 <strong>{session.trainingCard.baselineTimeLossMs} ms</strong></span><span>下次目标 <strong>≤ {session.trainingCard.targetTimeLossMs} ms</strong></span><span>证据置信度 <strong>{session.trainingCard.confidence}</strong></span></div><div className="training-copy"><strong>练习方式</strong><p>{session.trainingCard.exercise}</p><strong>完成标准</strong><p>{session.trainingCard.completionCriteria}</p></div></section>}
+      <section className="workspace-next"><div><h2>下一步</h2><p>打开已有交付物，或按需要重新生成本场的本地成果。</p></div><div className="button-row"><button className="secondary" type="button" onClick={() => onSection("deliverables")}>查看交付物</button><button className="primary" type="button" onClick={() => onSection("generate")}>生成与重试</button></div></section>
+    </>}
+    {section === "generate" && <>
+      <section className="section-head"><div><p className="eyebrow">DELIVERY</p><h2>生成或重新生成交付物</h2><p>选择要在这台电脑上生成的内容；完成后会保留在当前 Session。</p></div></section>
+      {session.deliveryError && <div className="notice error"><span>{session.deliveryError}</span></div>}
+      {session.syncRequiresReview && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />我已检查同步，允许低置信度时间轴继续生成。</label>}
+      {showProgress && <DeliveryProgressPanel progress={progress} />}
+      <section className="delivery-card"><div><h2>选择生成档位</h2><p>成绩单模式只需要 IBT；完整模式会额外生成最快圈、OPT 和 Racing Memory Reel。所有文件只保存在本机。</p></div><div className="delivery-actions"><button className="secondary" type="button" disabled={busy} onClick={() => onGenerate("scorecard")}>{busy ? "正在生成…" : "生成成绩单与报告"}</button><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={() => onGenerate("full")}>生成完整视频交付</button></div></section>
+      {!session.videoAvailable && <div className="notice"><span>原始录像目前不可用，因此不能生成视频交付物；已归档的遥测和本地 Session 信息仍可保留。</span></div>}
+      {!busy && session.deliveryStatus === "succeeded" && <button className="primary" type="button" onClick={() => onSection("deliverables")}>查看已生成交付物</button>}
+    </>}
+    {section === "deliverables" && <>
+      <section className="section-head"><div><p className="eyebrow">DELIVERABLES</p><h2>赛后交付物</h2><p>仅显示面向复盘的文件；诊断文件不会混在这里。</p></div><button className="secondary" type="button" onClick={() => onOpenAsset(`${session.sessionDirectory}\\delivery`)}>打开交付目录</button></section>
+      {visibleAssets.length === 0
+        ? <EmptyState title="尚未生成可查看的赛后产物" detail="在“生成与重试”中完成交付后，这里会显示主成绩单、可播放的视频和完整赛后报告。" />
+        : <>
+          <AssetGroup title="一页总结" detail="快速了解这场比赛最重要的结果。" assets={overviewAssets} onOpen={onOpenAsset} />
+          <AssetGroup title="比赛视频" detail="回看精彩片段、最快完整圈和理论 OPT。" assets={videoAssets} onOpen={onOpenAsset} />
+          <AssetGroup title="完整报告" detail="查看逐圈表现、驾驶机会、训练建议和数据质量。" assets={reportAssets} onOpen={onOpenAsset} />
+        </>}
+    </>}
   </>;
 }
 
