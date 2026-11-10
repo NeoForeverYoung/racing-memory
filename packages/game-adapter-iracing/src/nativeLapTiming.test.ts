@@ -43,4 +43,18 @@ describe("nativeLapSpans", () => {
       endIndex: 4,
     });
   });
+
+  it("does not reuse a previous lap time that settled late in the current lap", () => {
+    const spans = nativeLapSpans([
+      sample(0, 1, 0, 130),
+      sample(130_000, 1, 100, 130),
+      sample(130_100, 2, 0, 130),
+      sample(131_000, 2, 80, 140),
+      sample(280_000, 2, 100, 140),
+      sample(280_100, 3, 0, 140),
+      sample(280_500, 3, 1, 150),
+    ]);
+
+    expect(spans[1].officialTimeMs).toBe(150_000);
+  });
 });

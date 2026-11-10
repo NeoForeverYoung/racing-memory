@@ -52,7 +52,9 @@ export function nativeLapSpans(samples: GpsSample[]): NativeLapSpan[] {
     const startProgress = field(first, PROGRESS) ?? 0;
     const endProgress = field(last, PROGRESS) ?? 0;
     const endMs = next?.samples[0].t ?? last.t;
-    const beforeFinish = group.samples.filter((sample) => (field(sample, PROGRESS) ?? 0) < 0.9);
+    // Progress is canonical 0–100. Use a late-lap baseline so a delayed `Last`
+    // publication from the previous crossing is not assigned to this lap too.
+    const beforeFinish = group.samples.filter((sample) => (field(sample, PROGRESS) ?? 0) < 90);
     const previousLastLap = field(beforeFinish.at(-1) ?? first, LAST_LAP_TIME);
     const lapDurationSec = (endMs - first.t) / 1000;
     const officialSample = next?.samples
