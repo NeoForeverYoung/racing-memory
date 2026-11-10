@@ -464,6 +464,14 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   不再依赖瞬时事件，并在 Registry 出现新 Session 后自动进入 Session Result。
   Parallels GUI 启动命令同时统一为 PowerShell `Start-Process`；
   禁止用会让宿主终端随 GUI 生命周期一直挂起的 `cmd start`。
+- 可恢复进度修复提交 `173a3337cc42` 已由 Parallels Windows 11 的 guest-local NTFS
+  clone 拉取，以 Windows x64 Rust target 通过 8 项 Desktop 单测并完成正式打包；
+  ZIP SHA-256 为 `9a3270d39095d2878c160b0f69da432b3dc2cb675b0a0abe9a62688c137a1f18`。
+  用真实 117 MB Spa IBT 点击“创建 Session 并生成”后，界面立即进入独立页，轮询进度
+  从 0% 更新至 10% 及后续阶段，并在约 30 秒后自动进入新 Session Result。Registry
+  记录 `55dd4844-1195-4508-8722-8091da26aae8` 为 `succeeded`，对应
+  `import-1794296879912` 的进度日志共 15 行。通过 PowerShell `Start-Process` 启动包
+  约 3.6 秒即返回，宿主 Terminal 未再挂起。
 
 ## 10. 触点
 
