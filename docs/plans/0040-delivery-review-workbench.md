@@ -476,6 +476,22 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   记录 `55dd4844-1195-4508-8722-8091da26aae8` 为 `succeeded`，对应
   `import-1794296879912` 的进度日志共 15 行。通过 PowerShell `Start-Process` 启动包
   约 3.6 秒即返回，宿主 Terminal 未再挂起。
+- 追加三组全 UI 端到端验收，Session Registry 从 5 条增至 8 条，三条均由首页真实填写
+  路径、选择档位、点击“创建 Session 并生成”，经过进度页后自动进入结果页：
+  1. 仅真实 Ferrari Spa IBT：Session `fdfd5748-3bca-4689-a32f-5ffe82005032`，
+     `succeeded`，PNG 成绩单与 HTML 报告均存在。
+  2. 同一 IBT + 2.8 GB MP4，完整视频交付：Session
+     `3c04b87e-4d8e-4ebd-bd25-f6ae424ecba0`，`succeeded`；Reel、最快完整圈、
+     OPT、PNG、HTML 共 5 项。三支 MP4 分别经 ffprobe 验证为 51.021、153.833、
+     140.288 秒。此轮先暴露首页缺少低置信度时间轴确认，补 UI 后重新构建通过。
+  3. 从 `SVappsLAB/iRacingTelemetrySDK` 公开下载的 162,304,117-byte Audi R8 GT3
+     Spa race IBT（SHA-256
+     `754d14e6e2870eb00d42368e36c7a15495cb68bfd5f829ab08665d0f95fc7f36`）：
+     Session `be97d4cd-8f24-49bc-a6f1-ba16362e9d79`，`succeeded`，2 项报告产物。
+     初次运行暴露车辆名错误取到安全车；改为按 `DriverCarIdx` 读取并重新导入后，
+     结果页正确显示 `Audi R8 LMS EVO II GT3`，错误测试 Session 已清理。
+- 最终 Windows 包来自 `main` 提交 `da91799361bc`，ZIP SHA-256
+  `2343b940fe7e85d5b655854a22e2e2821e9ef2def2085baa30cd6b1ad5f9001d`。
 
 ## 10. 触点
 
