@@ -355,7 +355,10 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 状态：已实现；IBT、录像、数据根目录和 iRacing 遥测目录均提供 Windows 原生文件/目录选择器，同时保留可编辑路径以支持复制粘贴。
 
 1. 实现 `lapwing delivery generate`，复用既有 bundle/job/pipeline。
-2. 实现 Desktop 文件选择器、输入预检、preset 选择和步骤级进度。
+2. 实现 Desktop 文件选择器、输入预检、preset 选择和步骤级进度。导入命令创建受限的
+   `import-<timestamp>` 进度 ID 后立即返回；UI 每 500 ms 从固定 Session 目录读取
+   NDJSON、错误文件和 Registry 完成状态，以磁盘状态作为可恢复事实源，Tauri live event
+   仅作低延迟提示。进度 ID 只接受 ASCII 数字后缀，不能用于任意路径读取。
 3. 支持当前 Session “重新生成”，清理本次受管输出但不删除原始 IBT/视频。
 4. 无视频时默认成绩单档成功；有视频时才开放完整档。
 5. 与 Plan 0039 的 `import_session` 合并实现，避免两个入口和两套契约。
@@ -455,8 +458,11 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   可画图圈。iRacing 的 `Lap`、0–100 `LapDistPct` 与过线后稳定的正数
   `LapLastLapTime` 现成为 Web/CLI 共用的权威圈界与圈时；没有官方有效值的圈直接省略。
 - 既有文件导入曾在 Home 原地只把按钮改成“正在导入并生成”，用户无法确认是否已进入
-  流水线。点击后现立即切换到独立进度页，复用逐阶段进度组件，完成事件再自动进入
-  Session Result。Parallels GUI 启动命令同时统一为 PowerShell `Start-Process`；
+  流水线。点击后现立即切换到独立进度页，复用逐阶段进度组件。首轮真机验收继续发现
+  live event 可能早于 listener/状态更新而丢失，表现为流水线已经完成但页面仍为全阶段
+  0%。导入现返回不可路径逃逸的进度 ID，UI 轮询落盘 NDJSON、错误文件与 Registry，
+  不再依赖瞬时事件，并在 Registry 出现新 Session 后自动进入 Session Result。
+  Parallels GUI 启动命令同时统一为 PowerShell `Start-Process`；
   禁止用会让宿主终端随 GUI 生命周期一直挂起的 `cmd start`。
 
 ## 10. 触点

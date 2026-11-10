@@ -32,6 +32,7 @@ import "./styles.css";
 type View = "home" | "library" | "session" | "settings" | "progress";
 type AppEvent = { kind: "capture" | "delivery"; level: "info" | "error"; message: string; at: string; sessionId?: string };
 type PathPickerKind = "telemetryFile" | "videoFile" | "directory";
+type ImportProgressSnapshot = { lines: string[]; sessionId?: string; error?: string };
 
 const EMPTY_STATE: DesktopState = {
   settings: { dataRoot: "", telemetryDirectory: "", obsUrl: "" },
@@ -77,12 +78,15 @@ function App() {
   const [allowLowConfidence, setAllowLowConfidence] = useState(false);
   const [busy, setBusy] = useState<"capture" | "import" | "delivery" | "settings" | "rebuild" | null>(null);
   const [deliveryProgress, setDeliveryProgress] = useState<DeliveryProgress>({});
+  const [importProgressId, setImportProgressId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [obsReadiness, setObsReadiness] = useState<ObsReadiness | null>(null);
   const [captureActive, setCaptureActive] = useState(() => sessionStorage.getItem(CAPTURE_ACTIVE_KEY) === "1");
   const [capturePhase, setCapturePhase] = useState<CapturePhase | null>(readStoredPhase);
   const [obsRecord, setObsRecord] = useState<ObsRecordStatus | null>(null);
   const obsPasswordRef = useRef("");
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
 
   const selected = useMemo(
     () => state.sessions.find((session) => session.id === selectedId) ?? state.sessions[0] ?? null,
@@ -118,7 +122,7 @@ function App() {
       }
       if (payload.level === "error") {
         setMessage(payload.message);
-        setBusy(null);
+        if (busyRef.current !== "import") setBusy(null);
         void refresh();
       }
       if (payload.kind === "capture" && payload.message === "Capture engine stopped.") {
@@ -136,13 +140,54 @@ function App() {
           ])) as DeliveryProgress);
         }
         void refresh();
-        setBusy(null);
+        if (busyRef.current !== "import") setBusy(null);
         setCaptureActive(false);
         setCapturePhase(null);
       }
     }).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
   }, []);
+
+  useEffect(() => {
+    if (busy !== "import" || !importProgressId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const snapshot = await invoke<ImportProgressSnapshot>("get_import_progress", { progressId: importProgressId });
+        if (cancelled) return;
+        const updates: DeliveryProgress = {};
+        for (const line of snapshot.lines) {
+          const progress = parseDeliveryProgress(line);
+          if (progress) updates[progress.step] = progress;
+        }
+        setDeliveryProgress(updates);
+        if (snapshot.error) {
+          setMessage(snapshot.error);
+          setBusy(null);
+          setImportProgressId(null);
+          setView("home");
+          return;
+        }
+        if (snapshot.sessionId) {
+          const next = await invoke<DesktopState>("get_desktop_state");
+          if (cancelled) return;
+          setState(next);
+          setSelectedId(snapshot.sessionId);
+          setBusy(null);
+          setImportProgressId(null);
+          setView("session");
+        }
+      } catch (error) {
+        if (!cancelled) setMessage(String(error));
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [busy, importProgressId]);
 
   useEffect(() => {
     if (busy !== "delivery" || !selectedId) return;
@@ -335,7 +380,7 @@ function App() {
     setView("progress");
     setMessage(null);
     try {
-      await invoke("import_and_generate", {
+      const progressId = await invoke<string>("import_and_generate", {
         request: {
           telemetryPath: importTelemetryPath.trim(),
           videoPath: importVideoPath.trim() || null,
@@ -343,8 +388,10 @@ function App() {
           acceptLowConfidence: allowLowConfidence,
         },
       });
+      setImportProgressId(progressId);
     } catch (error) {
       setBusy(null);
+      setImportProgressId(null);
       setView("home");
       setMessage(String(error));
     }

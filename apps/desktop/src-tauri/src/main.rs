@@ -47,6 +47,14 @@ struct ImportGenerateRequest {
     accept_low_confidence: bool,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportProgressSnapshot {
+    lines: Vec<String>,
+    session_id: Option<String>,
+    error: Option<String>,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LocalSessionAsset {
@@ -706,7 +714,7 @@ fn start_capture(app: AppHandle, request: CaptureRequest) -> Result<(), String> 
 }
 
 #[tauri::command]
-fn import_and_generate(app: AppHandle, request: ImportGenerateRequest) -> Result<(), String> {
+fn import_and_generate(app: AppHandle, request: ImportGenerateRequest) -> Result<String, String> {
     let settings = load_settings();
     if settings.data_root.trim().is_empty() {
         return Err("Choose a Racing Memory data directory in Settings first.".to_owned());
@@ -732,9 +740,10 @@ fn import_and_generate(app: AppHandle, request: ImportGenerateRequest) -> Result
     if request.preset == "full" && video.is_none() {
         return Err("The full delivery preset requires a video.".to_owned());
     }
+    let progress_id = format!("import-{}", now_millis());
     let session_directory = Path::new(&settings.data_root)
         .join("sessions")
-        .join(format!("import-{}", now_millis()));
+        .join(&progress_id);
     fs::create_dir_all(&session_directory)
         .map_err(|error| format!("Cannot create Session directory: {error}"))?;
     let bundle = session_directory.join("session.bundle.json");
@@ -756,6 +765,7 @@ fn import_and_generate(app: AppHandle, request: ImportGenerateRequest) -> Result
         args.push("--accept-low-confidence".into());
     }
     let progress_file = session_directory.join("delivery-progress.ndjson");
+    let error_file = session_directory.join("import-error.txt");
     event(&app, "delivery", "info", "Importing existing telemetry and generating race assets.");
     std::thread::spawn(move || {
         match run_sidecar(app.clone(), "delivery", args, None, Some(progress_file)) {
@@ -772,12 +782,18 @@ fn import_and_generate(app: AppHandle, request: ImportGenerateRequest) -> Result
                         Err(error) => event_for_session(&app, "delivery", "error", error, Some(&session_id)),
                     }
                 }
-                Err(error) => event(&app, "delivery", "error", error),
+                Err(error) => {
+                    let _ = fs::write(&error_file, &error);
+                    event(&app, "delivery", "error", error);
+                }
             },
-            Err(error) => event(&app, "delivery", "error", error),
+            Err(error) => {
+                let _ = fs::write(&error_file, &error);
+                event(&app, "delivery", "error", error);
+            }
         }
     });
-    Ok(())
+    Ok(progress_id)
 }
 
 #[tauri::command]
@@ -796,6 +812,43 @@ fn get_delivery_progress(session_id: String) -> Result<Vec<String>, String> {
         .lines()
         .map(str::to_owned)
         .collect())
+}
+
+fn import_progress_directory(data_root: &Path, progress_id: &str) -> Result<PathBuf, String> {
+    let suffix = progress_id
+        .strip_prefix("import-")
+        .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .ok_or_else(|| "Invalid import progress id.".to_owned())?;
+    Ok(data_root.join("sessions").join(format!("import-{suffix}")))
+}
+
+#[tauri::command]
+fn get_import_progress(progress_id: String) -> Result<ImportProgressSnapshot, String> {
+    let settings = load_settings();
+    let directory = import_progress_directory(Path::new(&settings.data_root), &progress_id)?;
+    let progress_path = directory.join("delivery-progress.ndjson");
+    let lines = if progress_path.is_file() {
+        fs::read_to_string(progress_path)
+            .map_err(|error| format!("Could not read import progress: {error}"))?
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let error_path = directory.join("import-error.txt");
+    let error = error_path.is_file()
+        .then(|| fs::read_to_string(error_path).unwrap_or_else(|_| "Import failed.".to_owned()));
+    let session_id = load_registry(Path::new(&settings.data_root))
+        .sessions
+        .into_iter()
+        .find(|session| Path::new(&session.session_directory) == directory)
+        .map(|session| session.id);
+    Ok(ImportProgressSnapshot {
+        lines,
+        session_id,
+        error,
+    })
 }
 
 #[tauri::command]
@@ -1187,6 +1240,7 @@ fn main() {
             rebuild_session_registry,
             start_capture,
             import_and_generate,
+            get_import_progress,
             get_delivery_progress,
             read_image_preview,
             pick_local_path,
@@ -1201,8 +1255,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        inject_desktop_session_meta, needs_analysis_bootstrap_redirect, parse_range, scan_assets,
-        sha256_file, LocalSessionAsset,
+        import_progress_directory, inject_desktop_session_meta, needs_analysis_bootstrap_redirect,
+        parse_range, scan_assets, sha256_file, LocalSessionAsset,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1259,6 +1313,18 @@ mod tests {
         assert_eq!(parse_range("bytes=10-19", 100), Some((10, 19)));
         assert_eq!(parse_range("bytes=90-", 100), Some((90, 99)));
         assert_eq!(parse_range("bytes=100-", 100), None);
+    }
+
+    #[test]
+    fn import_progress_ids_cannot_escape_the_sessions_directory() {
+        let root = std::env::temp_dir().join("racing-memory-progress-root");
+        assert_eq!(
+            import_progress_directory(&root, "import-123").unwrap(),
+            root.join("sessions").join("import-123")
+        );
+        for invalid in ["123", "import-", "import-../settings", "import-1/../../settings", "import-１２３"] {
+            assert!(import_progress_directory(&root, invalid).is_err(), "{invalid}");
+        }
     }
 
     #[test]
