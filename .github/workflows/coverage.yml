@@ -80,6 +80,9 @@ jobs:
 
       - name: Push badge to coverage gist
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        # Coverage thresholds are the merge gate. A deleted/misconfigured
+        # external Gist must not turn an otherwise valid main build red.
+        continue-on-error: true
         uses: Schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_TOKEN }}
