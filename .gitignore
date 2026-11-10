@@ -82,6 +82,7 @@ $RECYCLE.BIN/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/binaries/
 apps/desktop/src-tauri/icons/
+apps/desktop/src-tauri/resources/
 
 # Cargo.lock for the Desktop application is intentionally committed. It pins
 # the native dependency graph for reproducible Windows release builds.
