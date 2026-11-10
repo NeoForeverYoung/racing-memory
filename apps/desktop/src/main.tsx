@@ -1,21 +1,26 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   DELIVERY_STEPS,
   assetDisplayLabel,
+  captureStage,
   deliveryLabel,
   deliveryOverallPercent,
+  formatRecordingStats,
   isPreviewableImage,
   captureReady,
   obsReadinessSummary,
+  parseCaptureEvent,
   parseDeliveryProgress,
   sessionDate,
   sessionTitle,
   setupReady,
   visibleSessionAssets,
+  type CapturePhase,
+  type CapturePresentation,
   type DeliveryProgress,
   type DesktopSettings,
   type DesktopState,
@@ -34,6 +39,30 @@ const EMPTY_STATE: DesktopState = {
   engineError: null,
 };
 
+// A Vite fast refresh must not reset the capture card to "ready" while the
+// sidecar is still recording, so the active flag survives a WebView reload.
+const CAPTURE_ACTIVE_KEY = "racing-memory.capture.active";
+const CAPTURE_PHASE_KEY = "racing-memory.capture.phase";
+
+type ObsRecordStatus = { active: boolean; durationMs: number; bytes: number };
+
+async function obsAuthentication(password: string, hello: { salt?: string; challenge?: string }): Promise<string | null> {
+  if (!password || !hello.salt || !hello.challenge) return null;
+  const encoder = new TextEncoder();
+  const digest = async (value: string) => new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
+  const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+  const secret = toBase64(await digest(password + hello.salt));
+  return toBase64(await digest(secret + hello.challenge));
+}
+
+function readStoredPhase(): CapturePhase | null {
+  try {
+    return JSON.parse(sessionStorage.getItem(CAPTURE_PHASE_KEY) ?? "null") as CapturePhase | null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const [state, setState] = useState<DesktopState>(EMPTY_STATE);
   const [view, setView] = useState<View>("home");
@@ -45,6 +74,10 @@ function App() {
   const [deliveryProgress, setDeliveryProgress] = useState<DeliveryProgress>({});
   const [message, setMessage] = useState<string | null>(null);
   const [obsReadiness, setObsReadiness] = useState<ObsReadiness | null>(null);
+  const [captureActive, setCaptureActive] = useState(() => sessionStorage.getItem(CAPTURE_ACTIVE_KEY) === "1");
+  const [capturePhase, setCapturePhase] = useState<CapturePhase | null>(readStoredPhase);
+  const [obsRecord, setObsRecord] = useState<ObsRecordStatus | null>(null);
+  const obsPasswordRef = useRef("");
 
   const selected = useMemo(
     () => state.sessions.find((session) => session.id === selectedId) ?? state.sessions[0] ?? null,
@@ -70,6 +103,10 @@ function App() {
         const progress = parseDeliveryProgress(payload.message);
         if (progress) setDeliveryProgress((current) => ({ ...current, [progress.step]: progress }));
       }
+      if (payload.kind === "capture") {
+        const phase = parseCaptureEvent(payload.message);
+        if (phase) setCapturePhase(phase);
+      }
       if (payload.sessionId) {
         setSelectedId(payload.sessionId);
         setView("session");
@@ -81,11 +118,16 @@ function App() {
       }
       if (payload.kind === "capture" && payload.message === "Capture engine stopped.") {
         setBusy(null);
+        setCaptureActive(false);
+        setCapturePhase(null);
+        setObsRecord(null);
         void refresh();
       }
       if (payload.message === "Session is ready to review." || payload.message === "Race assets are ready.") {
         void refresh();
         setBusy(null);
+        setCaptureActive(false);
+        setCapturePhase(null);
       }
     }).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
@@ -153,6 +195,91 @@ function App() {
     };
   }, [view, state.settings.obsUrl]);
 
+  useEffect(() => {
+    if (captureActive) sessionStorage.setItem(CAPTURE_ACTIVE_KEY, "1");
+    else sessionStorage.removeItem(CAPTURE_ACTIVE_KEY);
+  }, [captureActive]);
+
+  useEffect(() => {
+    if (capturePhase) sessionStorage.setItem(CAPTURE_PHASE_KEY, JSON.stringify(capturePhase));
+    else sessionStorage.removeItem(CAPTURE_PHASE_KEY);
+  }, [capturePhase]);
+
+  // Ask OBS directly for its record status. This is the authoritative signal
+  // that survives a WebView reload, when companion events have already gone.
+  // Probe on the home view even when the UI has no active flag: a capture that
+  // started before this code was loaded still has OBS writing a video.
+  useEffect(() => {
+    if (!state.settings.obsUrl.trim() || view !== "home") return;
+    let cancelled = false;
+    const sockets = new Set<WebSocket>();
+    const poll = () => {
+      if (cancelled) return;
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(state.settings.obsUrl);
+      } catch {
+        return;
+      }
+      sockets.add(ws);
+      ws.onclose = () => sockets.delete(ws);
+      const timeout = window.setTimeout(() => ws.close(), 2500);
+      ws.onmessage = async (event) => {
+        let message: { op?: number; d?: Record<string, unknown> };
+        try {
+          message = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        if (message.op === 0) {
+          const hello = (message.d?.authentication ?? {}) as { salt?: string; challenge?: string };
+          const authentication = await obsAuthentication(obsPasswordRef.current, hello);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ op: 1, d: { rpcVersion: 1, ...(authentication ? { authentication } : {}) } }));
+          }
+        } else if (message.op === 2) {
+          ws.send(JSON.stringify({ op: 6, d: { requestType: "GetRecordStatus", requestId: "racing-memory" } }));
+        } else if (message.op === 7 && message.d?.requestId === "racing-memory") {
+          const data = (message.d.responseData ?? {}) as Record<string, unknown>;
+          const active = Boolean(data.outputActive);
+          if (!cancelled) {
+            setObsRecord({
+              active,
+              durationMs: Number(data.outputDuration) || 0,
+              bytes: Number(data.outputBytes) || 0,
+            });
+            if (active) {
+              setCaptureActive(true);
+              setCapturePhase((current) => current ?? { kind: "recording.started" });
+            }
+          }
+          window.clearTimeout(timeout);
+          ws.close();
+        } else if (message.op === 5) {
+          window.clearTimeout(timeout);
+          ws.close();
+        }
+      };
+      ws.onerror = () => window.clearTimeout(timeout);
+    };
+    void poll();
+    const timer = window.setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      for (const ws of sockets) {
+        try { ws.close(); } catch { /* already closed */ }
+      }
+    };
+  }, [state.settings.obsUrl, view]);
+
+  const resetCaptureState = () => {
+    setCaptureActive(false);
+    setCapturePhase(null);
+    setObsRecord(null);
+    setBusy(null);
+  };
+
   const chooseSession = (session: LocalSessionRecord) => {
     setSelectedId(session.id);
     setView("session");
@@ -161,13 +288,17 @@ function App() {
   };
 
   const startCapture = async () => {
+    obsPasswordRef.current = obsPassword;
     setBusy("capture");
+    setCaptureActive(true);
+    setCapturePhase(null);
+    setObsRecord(null);
     setMessage(null);
     try {
       await invoke("start_capture", { request: { obsPassword } });
       setObsPassword("");
     } catch (error) {
-      setBusy(null);
+      resetCaptureState();
       setMessage(String(error));
     }
   };
@@ -222,7 +353,14 @@ function App() {
     }
   };
 
-  const canCapture = captureReady(state, obsReadiness) && busy === null;
+  const capturing = busy === "capture" || captureActive;
+  const canCapture = captureReady(state, obsReadiness) && !capturing;
+  const presentation = captureStage({
+    active: capturing,
+    phase: capturePhase,
+    obsRecording: obsRecord?.active ?? false,
+  });
+  const recordingStats = obsRecord?.active ? formatRecordingStats(obsRecord.durationMs, obsRecord.bytes) : null;
 
   return <main className="app-shell">
     <header className="topbar">
@@ -244,7 +382,10 @@ function App() {
           password={obsPassword}
           setPassword={setObsPassword}
           canCapture={canCapture}
-          capturing={busy === "capture"}
+          capturing={capturing}
+          presentation={presentation}
+          recordingStats={recordingStats}
+          onResetCapture={resetCaptureState}
           onCapture={startCapture}
           onSettings={() => setView("settings")}
           onSession={chooseSession}
@@ -271,13 +412,16 @@ function NavButton({ active, label, icon, count, onClick }: { active: boolean; l
   return <button className={active ? "nav active" : "nav"} type="button" onClick={onClick}><span>{icon}</span>{label}{count != null && <b>{count}</b>}</button>;
 }
 
-function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, onCapture, onSettings, onSession }: {
+function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, onSettings, onSession }: {
   state: DesktopState;
   obsReadiness: ObsReadiness | null;
   password: string;
   setPassword: (value: string) => void;
   canCapture: boolean;
   capturing: boolean;
+  presentation: CapturePresentation;
+  recordingStats: string | null;
+  onResetCapture: () => void;
   onCapture: () => void;
   onSettings: () => void;
   onSession: (session: LocalSessionRecord) => void;
@@ -289,11 +433,17 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
       <div><p className="eyebrow">本地比赛回忆</p><h1>准备下一场比赛</h1><p>完成比赛后，自动将遥测、分析和赛后产物整理为一个本地 Session。</p></div>
       <button className="secondary" type="button" onClick={onSettings}>检查设置</button>
     </section>
-    <section className="capture-card">
-      <div><p className="eyebrow">RACE DAY</p><h2>{capturing ? "正在等待 iRacing…" : "准备录制"}</h2><p>{capturing ? "绿旗时会启动 OBS；比赛结束后将等待 IBT 与录像稳定。可最小化窗口，完成后会自动出现新的 Session。" : "点击后等待 iRacing。OBS 密码只在本次录制进程中使用，不会写入本地配置。"}</p></div>
+    <section className={`capture-card stage-${presentation.stage}`}>
+      <div>
+        <p className="eyebrow">RACE DAY</p>
+        <h2>{presentation.title}</h2>
+        <p>{presentation.detail}</p>
+        {presentation.stage === "recording" && <p className="capture-live"><i />{recordingStats ? `OBS 正在录制 · ${recordingStats}` : "OBS 正在录制…"}</p>}
+        {capturing && presentation.stage !== "recording" && <button className="text-button capture-reset" type="button" onClick={onResetCapture}>重置录制状态</button>}
+      </div>
       <div className="capture-actions">
         <label>OBS WebSocket 密码（本次运行）<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="如 OBS 未设置密码可留空" /></label>
-        <button className="primary" type="button" disabled={!canCapture} onClick={onCapture}>{capturing ? "正在等待比赛" : "准备录制"}</button>
+        <button className={presentation.stage === "recording" ? "primary is-recording" : "primary"} type="button" disabled={!canCapture} onClick={onCapture}>{presentation.button}</button>
       </div>
     </section>
     <section className="readiness">
@@ -411,9 +561,28 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   return <div className="empty-state"><strong>{title}</strong><p>{detail}</p></div>;
 }
 
+function captureEventLabel(message: string): string {
+  const phase = parseCaptureEvent(message);
+  if (!phase) return message;
+  switch (phase.kind) {
+    case "lifecycle":
+      return {
+        connecting: "正在连接 iRacing 共享内存",
+        live: "iRacing 已连接，等待绿旗",
+        green: "绿旗亮起，开始录制",
+        finished: "比赛结束，停止录制",
+      }[phase.state];
+    case "recording.started": return "OBS 已开始录制";
+    case "recording.stopped": return "OBS 已停止录制";
+    case "telemetry.finalized": return "遥测文件已稳定";
+    case "bundle.created": return "本地 Session 已生成";
+    case "error": return `录制引擎报错：${phase.message}`;
+  }
+}
+
 function Activity({ events }: { events: AppEvent[] }) {
   if (events.length === 0) return null;
-  return <section className="activity"><div className="section-head"><div><h2>活动记录</h2><p>本次打开应用期间的本地引擎消息。</p></div></div><ul>{events.slice(0, 8).map((event, index) => <li className={event.level} key={`${event.at}-${index}`}><time>{formatTime(event.at)}</time><span>{event.message}</span></li>)}</ul></section>;
+  return <section className="activity"><div className="section-head"><div><h2>活动记录</h2><p>本次打开应用期间的本地引擎消息。</p></div></div><ul>{events.slice(0, 8).map((event, index) => <li className={event.level} key={`${event.at}-${index}`}><time>{formatTime(event.at)}</time><span>{event.kind === "capture" ? captureEventLabel(event.message) : event.message}</span></li>)}</ul></section>;
 }
 
 function formatTime(value: string): string {

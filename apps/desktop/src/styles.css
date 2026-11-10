@@ -42,6 +42,14 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .capture-card, .delivery-card { display: flex; gap: 24px; align-items: center; justify-content: space-between; padding: 24px; border: 1px solid #45414a; border-radius: 13px; background: linear-gradient(124deg, #242229, #2f2027 78%); }
 .capture-card h2, .delivery-card h2 { margin-top: 4px; font-size: 20px; }
 .capture-card p:not(.eyebrow), .delivery-card p { max-width: 580px; margin: 8px 0 0; font-size: 13px; }
+.capture-card .capture-live { display: flex; align-items: center; gap: 9px; margin: 12px 0 0; color: #7fe0a5; font-size: 12px; font-weight: 700; }
+.capture-live i { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #3ecf7a; animation: recording-pulse 1.6s ease-out infinite; }
+@keyframes recording-pulse { 0% { box-shadow: 0 0 0 0 #3ecf7a80; } 70% { box-shadow: 0 0 0 9px #3ecf7a00; } 100% { box-shadow: 0 0 0 0 #3ecf7a00; } }
+.primary.is-recording { border-color: #3a8a60; background: #2c6a49; color: #e3f8ec; }
+.primary:disabled { cursor: default; opacity: .82; }
+.capture-reset { display: inline-block; margin-top: 10px; font-size: 12px; }
+.stage-recording { border-color: #3c6b52; }
+.stage-connected { border-color: #3c5470; }
 .capture-actions { display: grid; min-width: 270px; gap: 10px; }
 .capture-actions label, .field { display: grid; gap: 6px; color: #cdd1da; font-size: 12px; font-weight: 650; }
 .capture-actions input, .field input { width: 100%; padding: 10px 11px; border: 1px solid #4a4e59; border-radius: 7px; outline: none; color: #f5f6fa; background: #17191f; }

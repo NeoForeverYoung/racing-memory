@@ -194,3 +194,125 @@ export function deliveryLabel(status: LocalSessionRecord["deliveryStatus"]): str
 export function setupReady(settings: DesktopSettings): boolean {
   return Boolean(settings.dataRoot.trim() && settings.telemetryDirectory.trim() && settings.obsUrl.trim());
 }
+
+export type CapturePhase =
+  | { kind: "lifecycle"; state: "connecting" | "live" | "green" | "finished" }
+  | { kind: "recording.started" }
+  | { kind: "recording.stopped" }
+  | { kind: "telemetry.finalized" }
+  | { kind: "bundle.created" }
+  | { kind: "error"; message: string };
+
+/** Companion events arrive as JSON lines on the sidecar's stderr. */
+export function parseCaptureEvent(message: string): CapturePhase | null {
+  const trimmed = message.trim();
+  if (!trimmed.startsWith("{")) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+  const event = value as Record<string, unknown>;
+  if (event.version !== 1 || typeof event.event !== "string") return null;
+  switch (event.event) {
+    case "race.lifecycle": {
+      const race = event.race as Record<string, unknown> | undefined;
+      const state = race?.state;
+      if (state === "connecting" || state === "live" || state === "green" || state === "finished") {
+        return { kind: "lifecycle", state };
+      }
+      return null;
+    }
+    case "recording.started": return { kind: "recording.started" };
+    case "recording.stopped": return { kind: "recording.stopped" };
+    case "telemetry.finalized": return { kind: "telemetry.finalized" };
+    case "bundle.created": return { kind: "bundle.created" };
+    case "companion.error":
+      return { kind: "error", message: typeof event.message === "string" ? event.message : "录制引擎报错" };
+    default: return null;
+  }
+}
+
+export type CaptureStageId = "idle" | "waiting" | "connected" | "recording" | "finalizing" | "error";
+
+export type CapturePresentation = {
+  stage: CaptureStageId;
+  title: string;
+  detail: string;
+  button: string;
+};
+
+/**
+ * The home card used to say "waiting for iRacing" for the whole capture, even
+ * while OBS had been recording for minutes. Derive the copy from the companion
+ * events plus the live OBS record status instead.
+ */
+export function captureStage(input: {
+  active: boolean;
+  phase: CapturePhase | null;
+  obsRecording: boolean;
+}): CapturePresentation {
+  if (!input.active) {
+    return {
+      stage: "idle",
+      title: "准备录制",
+      detail: "点击后等待 iRacing。OBS 密码只在本次录制进程中使用，不会写入本地配置。",
+      button: "准备录制",
+    };
+  }
+  const phase = input.phase;
+  if (phase?.kind === "error") {
+    return { stage: "error", title: "录制引擎报错", detail: phase.message, button: "查看活动记录" };
+  }
+  if (
+    phase?.kind === "recording.stopped"
+    || phase?.kind === "telemetry.finalized"
+    || phase?.kind === "bundle.created"
+  ) {
+    return {
+      stage: "finalizing",
+      title: "比赛结束，正在整理 Session…",
+      detail: "OBS 已停录，正在等待 IBT 与录像稳定并写入本地 Session。完成后会自动出现新的 Session。",
+      button: "整理中…",
+    };
+  }
+  const greenFromPhase = phase?.kind === "lifecycle" && phase.state === "green";
+  if (phase?.kind === "recording.started" || greenFromPhase || input.obsRecording) {
+    return {
+      stage: "recording",
+      title: "正在录制本场比赛",
+      detail: "OBS 正在写入录像，比赛内容已接入。可最小化窗口；比赛结束会自动停录并生成 Session。",
+      button: "录制中…",
+    };
+  }
+  if (phase?.kind === "lifecycle" && (phase.state === "live" || phase.state === "finished")) {
+    return {
+      stage: "connected",
+      title: "iRacing 已连接，等待绿旗",
+      detail: "已读到共享内存会话数据；进入车辆、绿旗亮起时会自动启动 OBS 录制。",
+      button: "等待绿旗…",
+    };
+  }
+  return {
+    stage: "waiting",
+    title: "正在等待 iRacing…",
+    detail: "录制引擎已就绪，启动 iRacing 并进入车辆后会显示连接状态；绿旗时自动开始录制。",
+    button: "等待 iRacing…",
+  };
+}
+
+export function formatRecordingStats(durationMs: number, bytes: number): string {
+  const total = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const clock = hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  const size = bytes >= 1024 ** 3
+    ? `${(bytes / 1024 ** 3).toFixed(2)} GB`
+    : `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+  return `${clock} · ${size}`;
+}
