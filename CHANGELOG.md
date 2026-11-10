@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-11-10
+
 ### Fixed
 - **IBT-only imports no longer fail when Microsoft Edge writes a scorecard PNG just after its headless process exits.** Windows now waits briefly for a non-empty screenshot before treating report generation as failed, avoiding a race that could leave a fully analyzed Session stranded after the scorecard had actually been created. (Plan 0040.)
 

@@ -1,7 +1,7 @@
 {
   "name": "doves-dataviewer",
   "private": true,
-  "version": "5.1.0",
+  "version": "5.1.1",
   "packageManager": "bun@1.4.4",
   "description": "Open-source, offline-first motorsport telemetry viewer (Dove's DataViewer / LapWing).",
   "license": "GPL-3.0-or-later",

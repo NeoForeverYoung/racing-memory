@@ -503,6 +503,9 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   误报“Microsoft Edge did not create PNG”，但 `scorecard-summary.png` 随后存在。
   根因是 Edge 进程退出与最终 PNG 可见之间的 Windows 文件系统时序竞态。渲染器现最多等待
   5 秒直到文件非空，并有延迟输出回归测试；仅在真实超时后才失败。
+- 同一份失败输入已由 Windows x64 新包的 sidecar 重跑：`delivery generate --preset
+  scorecard` 成功退出，生成 `scorecard-summary.png`（59,969 bytes）与 HTML 报告。
+  该用户可触发缺陷在 `v5.1.1` 补丁版发布，而非留在已发布的 `v5.1.0`。
 
 ## 10. 触点
 
