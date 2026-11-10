@@ -498,6 +498,11 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   解压目录和 ZIP 根目录均包含 7,879-byte UTF-8 `README.md`，构建 smoke assertion
   通过；ZIP SHA-256 为
   `52d474271cd6e3d599e2d40ecc9596adc37d65ee26ca2e14d1e427ef0ebcfd29`。
+- `v5.1.0` 手动解压验收时，用户从共享盘 IBT 走“成绩单与报告”遇到
+  `Engine stopped with exit Some(1)`。落盘进度表明 inspect/analyze 已成功，report
+  误报“Microsoft Edge did not create PNG”，但 `scorecard-summary.png` 随后存在。
+  根因是 Edge 进程退出与最终 PNG 可见之间的 Windows 文件系统时序竞态。渲染器现最多等待
+  5 秒直到文件非空，并有延迟输出回归测试；仅在真实超时后才失败。
 
 ## 10. 触点
 

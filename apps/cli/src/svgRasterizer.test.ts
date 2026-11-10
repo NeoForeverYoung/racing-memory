@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolve } from "node:path";
-import { edgeScreenshotArgs, svgDimensions } from "./svgRasterizer";
+import { edgeScreenshotArgs, svgDimensions, waitForRenderedPng } from "./svgRasterizer";
 
 describe("svgDimensions", () => {
   it("reads the scorecard viewport from the SVG root", () => {
@@ -20,5 +23,18 @@ describe("edgeScreenshotArgs", () => {
     expect(args).toContain("--window-size=2160,2700");
     expect(args).toContain(`--screenshot=${resolve("scorecard.png")}`);
     expect(args.at(-1)).toMatch(/^file:\/\//);
+  });
+});
+
+describe("waitForRenderedPng", () => {
+  it("waits for Edge's deferred non-empty output", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "lapwing-rasterizer-"));
+    const png = join(directory, "scorecard.png");
+    try {
+      setTimeout(() => writeFileSync(png, "png"), 20);
+      await expect(waitForRenderedPng(png, 500, 5)).resolves.toBe(true);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

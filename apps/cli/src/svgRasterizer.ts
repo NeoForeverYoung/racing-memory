@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -50,6 +50,24 @@ export function edgeScreenshotArgs(
   ];
 }
 
+export async function waitForRenderedPng(
+  pngPath: string,
+  timeoutMs = 5_000,
+  intervalMs = 100,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    try {
+      if (existsSync(pngPath) && statSync(pngPath).size > 0) return true;
+    } catch {
+      // Edge may still be atomically replacing the output file.
+    }
+    if (Date.now() + intervalMs > deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
+}
+
 export async function rasterizeSvg(svg: string, svgPath: string, pngPath: string): Promise<void> {
   if (process.platform === "win32") {
     const edge = windowsEdge();
@@ -68,7 +86,13 @@ export async function rasterizeSvg(svg: string, svgPath: string, pngPath: string
         // disposable and will be reclaimed by the OS.
       }
     }
-    if (!existsSync(pngPath)) throw new CliError("BINARY_FAILED", "Microsoft Edge did not create the requested scorecard PNG.", 1);
+    if (!await waitForRenderedPng(pngPath)) {
+      throw new CliError(
+        "BINARY_FAILED",
+        "Microsoft Edge did not finish writing the requested scorecard PNG within 5 seconds.",
+        1,
+      );
+    }
     return;
   }
   const sharp = await loadSharp();
