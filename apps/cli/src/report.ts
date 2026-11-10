@@ -14,7 +14,7 @@ import { readSessionBundle } from "./jobStore";
 import { loadTelemetry } from "./core";
 import { emitProgress } from "./progress";
 import { rasterizeSvg } from "./svgRasterizer";
-import { selectTrainingCard } from "./trainingCard";
+import { isActionableDrivingInsight, selectTrainingCard } from "./trainingCard";
 
 function applyIracingNativeLapTiming(
   analytics: SessionAnalytics,
@@ -99,11 +99,15 @@ export async function renderReport(
   await mkdir(output, { recursive: true });
   const files: string[] = [];
   const variants: ScorecardVariant[] = ["summary", "track", "laps", "insights"];
-  const reportInsights = insights.length > 0 ? insights : analysis.drivingInsights.insights.map((insight) => ({
-    title: insight.title,
-    detail: insight.advice,
-    confidence: insight.confidence === "high" ? 0.9 : insight.confidence === "medium" ? 0.65 : 0.35,
-  }));
+  const reportInsights = insights.length > 0
+    ? insights
+    : analysis.drivingInsights.insights
+      .filter(isActionableDrivingInsight)
+      .map((insight) => ({
+        title: insight.title,
+        detail: insight.advice,
+        confidence: 0.9,
+      }));
   const training = selectTrainingCard(analysis.drivingInsights);
   const input = {
     ...analysis,

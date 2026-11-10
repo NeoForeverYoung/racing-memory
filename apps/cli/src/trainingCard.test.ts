@@ -40,4 +40,33 @@ describe("selectTrainingCard", () => {
       reason: "At least two complete laps are required.",
     });
   });
+
+  it("rejects medium-confidence and implausibly large losses", () => {
+    const result = selectTrainingCard({
+      referenceLapNumber: 5,
+      analyzedLapNumber: 9,
+      warnings: [],
+      insights: [
+        insight("medium", "medium", 800),
+        insight("huge", "high", 54_664),
+      ],
+    });
+
+    expect(result.card).toBeNull();
+    expect(result.reason).toContain("足够可靠");
+  });
+
+  it("rejects a generic speed delta without control-specific evidence", () => {
+    const generic = {
+      ...insight("generic-speed", "high", 600),
+      kind: "corner-speed" as const,
+      evidence: [{ metric: "speed", current: 42, reference: 48, unit: "mph" }],
+    };
+    expect(selectTrainingCard({
+      referenceLapNumber: 5,
+      analyzedLapNumber: 6,
+      warnings: [],
+      insights: [generic],
+    }).card).toBeNull();
+  });
 });

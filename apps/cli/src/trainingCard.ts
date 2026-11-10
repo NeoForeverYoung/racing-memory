@@ -24,11 +24,28 @@ export interface TrainingCardResult {
   reason: string | null;
 }
 
-const CONFIDENCE_RANK: Record<InsightConfidence, number> = {
-  high: 3,
-  medium: 2,
-  low: 1,
-};
+const MIN_ACTIONABLE_LOSS_MS = 150;
+const MAX_ACTIONABLE_LOSS_MS = 2_000;
+
+export function isActionableDrivingInsight(insight: DrivingInsight): boolean {
+  if (
+    insight.confidence !== "high"
+    || !Number.isFinite(insight.timeLossMs)
+    || insight.timeLossMs < MIN_ACTIONABLE_LOSS_MS
+    || insight.timeLossMs > MAX_ACTIONABLE_LOSS_MS
+  ) return false;
+  const metrics = new Set(insight.evidence.map((item) => item.metric));
+  switch (insight.kind) {
+    case "braking":
+      return metrics.has("brake duration") || metrics.has("brake start");
+    case "throttle":
+      return metrics.has("throttle") || metrics.has("80% throttle recovery");
+    case "corner-speed":
+      return metrics.has("minimum speed");
+    case "sector":
+      return false;
+  }
+}
 
 function targetLossMs(lossMs: number): number {
   return Math.max(100, Math.round(lossMs / 2));
@@ -49,11 +66,8 @@ function exerciseFor(insight: DrivingInsight): string {
 
 export function selectTrainingCard(result: DrivingInsightsResult): TrainingCardResult {
   const candidate = [...result.insights]
-    .filter((insight) => insight.timeLossMs > 0 && Number.isFinite(insight.timeLossMs))
-    .sort((left, right) => {
-      const confidence = CONFIDENCE_RANK[right.confidence] - CONFIDENCE_RANK[left.confidence];
-      return confidence !== 0 ? confidence : right.timeLossMs - left.timeLossMs;
-    })[0];
+    .filter(isActionableDrivingInsight)
+    .sort((left, right) => right.timeLossMs - left.timeLossMs)[0];
 
   if (!candidate) {
     return {

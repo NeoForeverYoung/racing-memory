@@ -54,4 +54,15 @@ describe("scorecard renderer", () => {
     expect(html).not.toContain("Machine-readable analytics");
     expect(html).not.toContain('"sampleCount"');
   });
+
+  it("omits advice sections when no reliable recommendation exists", () => {
+    const html = renderScorecardHtml({
+      ...input,
+      insights: [],
+      trainingCard: null,
+    });
+    expect(html).not.toContain("最值得关注的机会");
+    expect(html).not.toContain("下次练什么");
+    expect(html).not.toContain("暂未生成");
+  });
 });

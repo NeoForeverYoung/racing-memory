@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Unreliable coaching is now omitted instead of guessed.** “Next practice” cards require a clean comparable lap, high confidence, plausible regional loss and control-specific braking/throttle/corner evidence; very slow, incident, pit-road and generic speed-delta comparisons no longer produce driver advice. (Plan 0038.)
 - **Fastest-lap exports keep iRacing `Last` on screen.** Session render now anchors the post-finish tail to the actual finish crossing as well as telemetry `Last`, and skips laps the video cannot cover through that tail, so the HUD has time to settle after the line. (Plan 0037.)
 
 ### Added

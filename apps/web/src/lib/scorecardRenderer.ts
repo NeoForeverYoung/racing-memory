@@ -163,21 +163,21 @@ export function renderScorecardHtml(input: ScorecardRenderInput): string {
       <td>${lap.incomplete ? "不完整" : "完整"}</td>
     </tr>`).join("")
     : '<tr><td colspan="3" class="muted">没有可展示的逐圈数据。</td></tr>';
-  const insightCards = insights.length > 0
-    ? insights.map((insight) => `<article class="card">
+  const insightSection = insights.length > 0
+    ? `<h2>最值得关注的机会</h2><div class="grid">${insights.map((insight) => `<article class="card">
       <div class="card-head"><h3>${escapeXml(insight.title)}</h3><span class="confidence">置信度 ${Math.round(insight.confidence * 100)}%</span></div>
       <p>${escapeXml(insight.detail)}</p>
-    </article>`).join("")
-    : '<p class="muted">本场没有足够可靠的圈间证据，因此没有生成驾驶建议。</p>';
-  const training = input.trainingCard
-    ? `<article class="training">
+    </article>`).join("")}</div>`
+    : "";
+  const trainingSection = input.trainingCard
+    ? `<h2>下次练什么</h2><article class="training">
       <p class="kicker">下一次只练这一件事</p>
       <h3>${escapeXml(input.trainingCard.title)}</h3>
       <p>${escapeXml(input.trainingCard.detail)}</p>
       <dl><div><dt>练习方式</dt><dd>${escapeXml(input.trainingCard.exercise)}</dd></div>
       <div><dt>完成标准</dt><dd>${escapeXml(input.trainingCard.completionCriteria)}</dd></div></dl>
     </article>`
-    : '<p class="muted">本场暂未生成可靠的训练卡。</p>';
+    : "";
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LapWing 赛后报告 · ${escapeXml(metadata.track ?? "未命名赛道")}</title>
@@ -208,8 +208,8 @@ ${summary}
 <div class="metric"><span>理论最佳圈</span><strong>${formatLap(analytics.optimalLapMs)}</strong></div>
 <div class="metric"><span>稳定性</span><strong>${formatConsistency(analytics.consistencyStdDevMs)}</strong></div></section>
 <h2>逐圈表现</h2><div class="table-wrap"><table><thead><tr><th>圈次</th><th>圈速</th><th>状态</th></tr></thead><tbody>${rows}</tbody></table></div>
-<h2>最值得关注的机会</h2><div class="grid">${insightCards}</div>
-<h2>下次练什么</h2>${training}
+${insightSection}
+${trainingSection}
 <h2>数据说明</h2><section class="quality"><div><span>完整圈</span><strong>${analytics.completeLapCount} 圈</strong></div>
 <div><span>Session 时长</span><strong>${formatDuration(analytics.durationMs)}</strong></div>
 <div><span>数据质量</span><strong>${escapeXml(quality)}</strong></div></section>

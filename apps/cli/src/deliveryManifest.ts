@@ -8,6 +8,7 @@ import {
 import packageJson from "../../../package.json";
 import { analyzeBundle } from "./report";
 import { writeJsonAtomic } from "./jobStore";
+import { selectTrainingCard } from "./trainingCard";
 
 interface SessionAssetDocument {
   fastestAvailablePath?: string;
@@ -97,7 +98,7 @@ export async function createDeliveryManifest(options: {
     order: 50,
   });
 
-  const primaryInsight = analysis.drivingInsights.insights[0]?.title;
+  const primaryInsight = selectTrainingCard(analysis.drivingInsights).card?.title;
   const manifest: DeliveryManifestV1 = {
     schemaVersion: DELIVERY_MANIFEST_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),

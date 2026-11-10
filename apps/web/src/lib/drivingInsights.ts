@@ -26,8 +26,26 @@ export interface DrivingInsightsResult {
   warnings: string[];
 }
 
+const MAX_COMPARABLE_LAP_GAP_RATIO = 0.08;
+const MAX_COMPARABLE_LAP_GAP_MS = 10_000;
+
 function lapSamples(samples: GpsSample[], lap: Lap): GpsSample[] {
   return samples.slice(lap.startIndex, lap.endIndex + 1);
+}
+
+function isCleanLap(samples: GpsSample[], lap: Lap): boolean {
+  const current = lapSamples(samples, lap);
+  if (current.some((sample) => (sample.extraFields.race_on_pit_road ?? 0) !== 0)) return false;
+  const incidents = current
+    .map((sample) => sample.extraFields.race_incidents)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return incidents.length < 2 || Math.max(...incidents) === Math.min(...incidents);
+}
+
+function isComparableLap(candidate: Lap, reference: Lap): boolean {
+  const gap = candidate.lapTimeMs - reference.lapTimeMs;
+  const limit = Math.min(MAX_COMPARABLE_LAP_GAP_MS, reference.lapTimeMs * MAX_COMPARABLE_LAP_GAP_RATIO);
+  return gap >= 0 && gap <= limit;
 }
 
 function throttleAt(sample: GpsSample): number | null {
@@ -61,16 +79,26 @@ function throttleRecoveryMs(samples: GpsSample[], after: number): number | null 
 
 export function generateDrivingInsights(samples: GpsSample[], laps: Lap[]): DrivingInsightsResult {
   const complete = laps
-    .filter((lap) => !lap.incomplete && lap.lapTimeMs > 0 && lap.endIndex > lap.startIndex)
+    .filter((lap) =>
+      !lap.incomplete
+      && lap.lapTimeMs > 0
+      && lap.endIndex > lap.startIndex
+      && isCleanLap(samples, lap))
     .sort((a, b) => a.lapTimeMs - b.lapTimeMs);
   const reference = complete[0];
-  const target = [...complete.slice(1)].sort((a, b) => b.lapNumber - a.lapNumber)[0];
+  const target = reference
+    ? [...complete.slice(1)]
+      .filter((lap) => isComparableLap(lap, reference))
+      .sort((a, b) => b.lapNumber - a.lapNumber)[0]
+    : undefined;
   if (!reference || !target) {
     return {
       referenceLapNumber: reference?.lapNumber ?? null,
       analyzedLapNumber: null,
       insights: [],
-      warnings: ["At least two complete laps are required for comparative driving insights."],
+      warnings: [reference
+        ? "No clean lap close enough to the reference pace was available for a reliable comparison."
+        : "At least two complete laps are required for comparative driving insights."],
     };
   }
 
