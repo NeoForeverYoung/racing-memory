@@ -6,6 +6,7 @@ This is the native shell for the complete offline Racing Memory workflow. A rele
 - a compiled `lapwing.exe` sidecar (no Node.js or Bun on the user's PC);
 - `ffmpeg.exe` and `ffprobe.exe` as application resources (no FFmpeg installation);
 - the bundled track and drawing databases required by local reports;
+- **not** OBS Studio — users install OBS separately; Home and Settings probe the configured WebSocket URL and common install paths;
 - iRacing shared-memory and OBS WebSocket capture support.
 
 Windows scorecard PNGs are rasterized locally from the generated SVG files by

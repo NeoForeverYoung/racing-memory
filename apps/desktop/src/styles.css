@@ -46,7 +46,11 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .capture-actions label, .field { display: grid; gap: 6px; color: #cdd1da; font-size: 12px; font-weight: 650; }
 .capture-actions input, .field input { width: 100%; padding: 10px 11px; border: 1px solid #4a4e59; border-radius: 7px; outline: none; color: #f5f6fa; background: #17191f; }
 .capture-actions input:focus, .field input:focus { border-color: #e34d5e; box-shadow: 0 0 0 3px #e34d5e2e; }
-.readiness { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 28px; }
+.readiness { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0 28px; }
+.setup-note { margin-bottom: 18px; border-color: #3a4a66; background: #141b28; }
+.setup-note p { margin: 8px 0 0; color: #9aa3b2; font-size: 13px; line-height: 1.55; }
+.setup-note a { color: #8cb4ff; }
+.obs-inline-status { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .readiness-item { display: flex; min-height: 91px; flex-direction: column; justify-content: space-between; padding: 14px; border: 1px solid #343842; border-radius: 10px; background: #1b1e26; }
 .readiness-item strong { display: block; font-size: 13px; }
 .readiness-item small { display: block; margin-top: 7px; color: #8f96a2; font-size: 11px; line-height: 1.45; }

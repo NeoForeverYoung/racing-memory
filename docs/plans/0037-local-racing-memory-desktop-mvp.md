@@ -308,7 +308,7 @@ sequenceDiagram
 
 ### P2：Desktop 三页面 MVP（已实现）
 
-- Home：就绪检查、准备录制、最近 Session；
+- Home：就绪检查（含 OBS 安装路径与 WebSocket 探测）、准备录制、最近 Session；Settings/release 说明 OBS 不随便携包分发；
 - Session Result：进度、同步审核、产物入口、错误恢复；
 - Session Library：浏览和打开本地 Session；
 - 将 Bundle 路径从普通用户流程中移除。
@@ -320,6 +320,8 @@ sequenceDiagram
 - 对 sidecar/FFmpeg 缺失给出安装包级错误。
 
 仍待补：首次配置向导、OBS 密码的 Windows 安全凭据存储、打开本地目录和删除 Registry 记录等受控操作。
+
+**工作流拆分**（IBT 手动导入、无视频成绩单、分档交付）见 **Plan 0039**，作为 0037 录制链路过脆的补充，不替代 Session 模型。
 
 ## 9. 明确不做
 

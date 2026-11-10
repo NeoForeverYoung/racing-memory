@@ -12,4 +12,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
 base64 = "0.22"
+tungstenite = { version = "0.24", default-features = false, features = ["handshake"] }
 

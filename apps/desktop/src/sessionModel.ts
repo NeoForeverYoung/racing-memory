@@ -50,12 +50,50 @@ export type DesktopSettings = {
   obsUrl: string;
 };
 
+export type ObsReadiness = {
+  installed: boolean;
+  installPath: string | null;
+  websocketOk: boolean;
+  detail: string;
+};
+
 export type DesktopState = {
   settings: DesktopSettings;
   sessions: LocalSessionRecord[];
   engineReady: boolean;
   engineError?: string | null;
 };
+
+export function obsReadinessSummary(
+  readiness: ObsReadiness | null,
+  settings: DesktopSettings,
+): { good: boolean; value: string; detail: string } {
+  if (!settings.obsUrl.trim()) {
+    return {
+      good: false,
+      value: "未配置",
+      detail: "在设置中填写 OBS WebSocket 地址；OBS Studio 需单独安装，不包含在便携包内。",
+    };
+  }
+  if (!readiness) {
+    return { good: false, value: "检测中…", detail: "正在探测 OBS WebSocket…" };
+  }
+  const installNote = readiness.installed
+    ? "已在本机常见路径检测到 OBS。"
+    : "未在常见路径检测到 OBS（便携安装仍可能可用）。";
+  return {
+    good: readiness.websocketOk,
+    value: readiness.websocketOk ? "已连接" : readiness.installed ? "未连接" : "需安装",
+    detail: `${installNote} ${readiness.detail}`,
+  };
+}
+
+export function captureReady(
+  state: Pick<DesktopState, "engineReady" | "settings">,
+  obs: ObsReadiness | null,
+): boolean {
+  return state.engineReady && setupReady(state.settings) && Boolean(obs?.websocketOk);
+}
 
 export const DELIVERY_STEPS = [
   { id: "inspect", label: "资料检查" },

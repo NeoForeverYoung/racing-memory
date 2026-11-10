@@ -4,6 +4,8 @@ import {
   deliveryLabel,
   deliveryOverallPercent,
   isPreviewableImage,
+  captureReady,
+  obsReadinessSummary,
   parseDeliveryProgress,
   sessionTitle,
   setupReady,
@@ -21,6 +23,19 @@ describe("local desktop session presentation", () => {
     expect(setupReady({ dataRoot: "C:\\RacingMemoryData", telemetryDirectory: "C:\\iRacing", obsUrl: "ws://127.0.0.1:4455" })).toBe(true);
     expect(setupReady({ dataRoot: "", telemetryDirectory: "C:\\iRacing", obsUrl: "ws://127.0.0.1:4455" })).toBe(false);
     expect(deliveryLabel("failed")).toContain("重试");
+    expect(obsReadinessSummary(null, { dataRoot: "", telemetryDirectory: "", obsUrl: "" }).value).toBe("未配置");
+    expect(
+      captureReady(
+        { engineReady: true, settings: { dataRoot: "D:\\data", telemetryDirectory: "D:\\iRacing", obsUrl: "ws://127.0.0.1:4455" } },
+        { installed: true, installPath: null, websocketOk: true, detail: "ok" },
+      ),
+    ).toBe(true);
+    expect(
+      captureReady(
+        { engineReady: true, settings: { dataRoot: "D:\\data", telemetryDirectory: "D:\\iRacing", obsUrl: "ws://127.0.0.1:4455" } },
+        { installed: true, installPath: null, websocketOk: false, detail: "down" },
+      ),
+    ).toBe(false);
   });
 
   it("parses engine progress and computes the overall percentage", () => {

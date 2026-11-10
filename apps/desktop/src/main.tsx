@@ -9,6 +9,8 @@ import {
   deliveryLabel,
   deliveryOverallPercent,
   isPreviewableImage,
+  captureReady,
+  obsReadinessSummary,
   parseDeliveryProgress,
   sessionDate,
   sessionTitle,
@@ -18,6 +20,7 @@ import {
   type DesktopSettings,
   type DesktopState,
   type LocalSessionRecord,
+  type ObsReadiness,
 } from "./sessionModel";
 import "./styles.css";
 
@@ -41,6 +44,7 @@ function App() {
   const [busy, setBusy] = useState<"capture" | "delivery" | "settings" | "rebuild" | null>(null);
   const [deliveryProgress, setDeliveryProgress] = useState<DeliveryProgress>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [obsReadiness, setObsReadiness] = useState<ObsReadiness | null>(null);
 
   const selected = useMemo(
     () => state.sessions.find((session) => session.id === selectedId) ?? state.sessions[0] ?? null,
@@ -123,6 +127,32 @@ function App() {
     };
   }, [busy, selectedId]);
 
+  useEffect(() => {
+    if (view !== "home" && view !== "settings") return;
+    let cancelled = false;
+    const probe = async () => {
+      try {
+        const next = await invoke<ObsReadiness>("probe_obs", { obsUrl: state.settings.obsUrl });
+        if (!cancelled) setObsReadiness(next);
+      } catch {
+        if (!cancelled) {
+          setObsReadiness({
+            installed: false,
+            installPath: null,
+            websocketOk: false,
+            detail: "无法在本机探测 OBS，请确认 Racing Memory 桌面版正在运行。",
+          });
+        }
+      }
+    };
+    void probe();
+    const timer = window.setInterval(() => void probe(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [view, state.settings.obsUrl]);
+
   const chooseSession = (session: LocalSessionRecord) => {
     setSelectedId(session.id);
     setView("session");
@@ -192,7 +222,7 @@ function App() {
     }
   };
 
-  const canCapture = state.engineReady && setupReady(state.settings) && busy === null;
+  const canCapture = captureReady(state, obsReadiness) && busy === null;
 
   return <main className="app-shell">
     <header className="topbar">
@@ -210,6 +240,7 @@ function App() {
         {message && <div className="notice error"><span>{message}</span><button type="button" onClick={() => setMessage(null)}>关闭</button></div>}
         {view === "home" && <Home
           state={state}
+          obsReadiness={obsReadiness}
           password={obsPassword}
           setPassword={setObsPassword}
           canCapture={canCapture}
@@ -229,7 +260,7 @@ function App() {
           onOpenAsset={openAsset}
           onBack={() => setView("library")}
         />}
-        {view === "settings" && <Settings settings={state.settings} busy={busy === "settings"} onSave={saveSettings} />}
+        {view === "settings" && <Settings settings={state.settings} obsReadiness={obsReadiness} busy={busy === "settings"} onSave={saveSettings} />}
         <Activity events={events} />
       </section>
     </div>
@@ -240,8 +271,9 @@ function NavButton({ active, label, icon, count, onClick }: { active: boolean; l
   return <button className={active ? "nav active" : "nav"} type="button" onClick={onClick}><span>{icon}</span>{label}{count != null && <b>{count}</b>}</button>;
 }
 
-function Home({ state, password, setPassword, canCapture, capturing, onCapture, onSettings, onSession }: {
+function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, onCapture, onSettings, onSession }: {
   state: DesktopState;
+  obsReadiness: ObsReadiness | null;
   password: string;
   setPassword: (value: string) => void;
   canCapture: boolean;
@@ -251,6 +283,7 @@ function Home({ state, password, setPassword, canCapture, capturing, onCapture, 
   onSession: (session: LocalSessionRecord) => void;
 }) {
   const configured = setupReady(state.settings);
+  const obs = obsReadinessSummary(obsReadiness, state.settings);
   return <>
     <section className="hero">
       <div><p className="eyebrow">本地比赛回忆</p><h1>准备下一场比赛</h1><p>完成比赛后，自动将遥测、分析和赛后产物整理为一个本地 Session。</p></div>
@@ -264,7 +297,8 @@ function Home({ state, password, setPassword, canCapture, capturing, onCapture, 
       </div>
     </section>
     <section className="readiness">
-      <Readiness label="本地引擎" value={state.engineReady ? "已就绪" : "需修复"} good={state.engineReady} detail={state.engineError ?? "包含录制、分析与 FFmpeg 处理能力"} />
+      <Readiness label="本地引擎" value={state.engineReady ? "已就绪" : "需修复"} good={state.engineReady} detail={state.engineError ?? "自带 FFmpeg 与本地分析 CLI，不含 OBS Studio。"} />
+      <Readiness label="OBS Studio" value={obs.value} good={obs.good} detail={obs.detail} />
       <Readiness label="iRacing telemetry" value={configured ? "已配置" : "未配置"} good={configured} detail={state.settings.telemetryDirectory || "在设置中选择 IBT 目录"} />
       <Readiness label="本地数据目录" value={configured ? "已配置" : "未配置"} good={configured} detail={state.settings.dataRoot || "在设置中选择保存位置"} />
     </section>
@@ -345,15 +379,21 @@ function AssetCard({ asset, onOpen }: { asset: LocalSessionRecord["assets"][numb
   </button>;
 }
 
-function Settings({ settings, busy, onSave }: { settings: DesktopSettings; busy: boolean; onSave: (settings: DesktopSettings) => void }) {
+function Settings({ settings, obsReadiness, busy, onSave }: { settings: DesktopSettings; obsReadiness: ObsReadiness | null; busy: boolean; onSave: (settings: DesktopSettings) => void }) {
   const [draft, setDraft] = useState(settings);
   useEffect(() => setDraft(settings), [settings]);
+  const obs = obsReadinessSummary(obsReadiness, draft);
   return <>
     <section className="hero"><div><p className="eyebrow">LOCAL SETUP</p><h1>本地设置</h1><p>这些路径仅保存在此电脑。OBS 密码不会写入配置，每次准备录制时输入。</p></div></section>
+    <aside className="notice setup-note">
+      <strong>OBS Studio 需单独安装</strong>
+      <p>便携包内包含 Racing Memory、FFmpeg 和赛道数据，<b>不包含 OBS</b>。请从 <a href="https://obsproject.com/" rel="noreferrer" target="_blank">obsproject.com</a> 安装 OBS，在 OBS 中打开「工具 → WebSocket 服务器设置」启用服务，端口与下方地址一致。</p>
+      <p className="obs-inline-status"><span className={obs.good ? "status good" : "status bad"}>{obs.value}</span>{obs.detail}</p>
+    </aside>
     <form className="settings-form" onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
       <Field label="Racing Memory 数据目录" value={draft.dataRoot} onChange={(dataRoot) => setDraft((current) => ({ ...current, dataRoot }))} help="Session、IBT 归档、成绩单和报告将保存在这里。原始 OBS 录像不会复制进来。" />
       <Field label="iRacing IBT 目录" value={draft.telemetryDirectory} onChange={(telemetryDirectory) => setDraft((current) => ({ ...current, telemetryDirectory }))} help="比赛结束后，Desktop 会在此等待 iRacing 完成遥测写入。" />
-      <Field label="OBS WebSocket 地址" value={draft.obsUrl} onChange={(obsUrl) => setDraft((current) => ({ ...current, obsUrl }))} help="通常为 ws://127.0.0.1:4455。" />
+      <Field label="OBS WebSocket 地址" value={draft.obsUrl} onChange={(obsUrl) => setDraft((current) => ({ ...current, obsUrl }))} help="通常为 ws://127.0.0.1:4455；保存后首页会自动检测 OBS 是否在线。" />
       <button className="primary" disabled={busy} type="submit">{busy ? "正在保存…" : "保存本地设置"}</button>
     </form>
   </>;

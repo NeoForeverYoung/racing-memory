@@ -8,6 +8,8 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
+mod obs_readiness;
+
 const SETTINGS_FILE: &str = "settings.json";
 const REGISTRY_FILE: &str = "registry.json";
 
@@ -543,6 +545,11 @@ fn run_sidecar(
 }
 
 #[tauri::command]
+fn probe_obs(obs_url: String) -> obs_readiness::ObsReadiness {
+    obs_readiness::probe_obs_readiness(&obs_url)
+}
+
+#[tauri::command]
 fn get_desktop_state() -> DesktopState {
     let settings = load_settings();
     let sessions = load_registry(Path::new(&settings.data_root)).sessions;
@@ -739,6 +746,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_desktop_state,
+            probe_obs,
             save_settings,
             rebuild_session_registry,
             start_capture,
