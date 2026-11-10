@@ -926,6 +926,20 @@ fn inject_desktop_session_meta(html: &str, token: &str) -> String {
     )
 }
 
+fn needs_analysis_bootstrap_redirect(uri: &str) -> bool {
+    uri.starts_with("/?")
+        && uri.contains("desktopSession=")
+        && !uri.contains("desktopReady=1")
+}
+
+fn write_analysis_bootstrap_redirect(stream: &mut TcpStream, token: &str) -> std::io::Result<()> {
+    let location = format!("/?desktopSession={token}&nosw=1&desktopReady=1");
+    write!(
+        stream,
+        "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+    )
+}
+
 fn parse_range(value: &str, size: u64) -> Option<(u64, u64)> {
     let raw = value.trim().strip_prefix("bytes=")?;
     let (start, end) = raw.split_once('-')?;
@@ -985,6 +999,9 @@ fn handle_analysis_request(
     }
 
     let api_root = format!("/api/session/{token}");
+    if needs_analysis_bootstrap_redirect(uri) {
+        return write_analysis_bootstrap_redirect(&mut stream, token);
+    }
     if uri == api_root {
         let descriptor = serde_json::json!({
             "telemetryUrl": format!("{api_root}/telemetry"),
@@ -1180,7 +1197,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        inject_desktop_session_meta, parse_range, scan_assets, sha256_file, LocalSessionAsset,
+        inject_desktop_session_meta, needs_analysis_bootstrap_redirect, parse_range, scan_assets,
+        sha256_file, LocalSessionAsset,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1246,6 +1264,16 @@ mod tests {
             "abc123",
         );
         assert!(html.contains(r#"<meta name="lapwing-desktop-session" content="abc123">"#));
+    }
+
+    #[test]
+    fn redirects_the_first_browser_navigation_once() {
+        assert!(needs_analysis_bootstrap_redirect(
+            "/?desktopSession=abc123&nosw=1"
+        ));
+        assert!(!needs_analysis_bootstrap_redirect(
+            "/?desktopSession=abc123&nosw=1&desktopReady=1"
+        ));
     }
 
     #[test]
