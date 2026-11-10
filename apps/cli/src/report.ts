@@ -93,6 +93,7 @@ export async function renderReport(
   outputDirectory: string,
   imageCount: number,
   insights: ScorecardInsight[] = [],
+  options: { includeHtml?: boolean } = {},
 ): Promise<{ outputDirectory: string; files: string[]; analytics: SessionAnalytics }> {
   const output = resolve(outputDirectory);
   const analysis = await analyzeBundle(bundlePath);
@@ -135,9 +136,17 @@ export async function renderReport(
   }
   await writeFile(join(output, "analytics.json"), `${JSON.stringify(analysis.analytics, null, 2)}\n`, "utf8");
   emitProgress("report", "running", "Session analytics are ready.", 0.9);
-  await writeFile(join(output, "index.html"), renderScorecardHtml(input), "utf8");
-  emitProgress("report", "running", "Post-session report is ready.", 1);
-  files.push("analytics.json", "index.html");
+  files.push("analytics.json");
+  // The standalone `report render` CLI command still produces the full HTML
+  // report. The desktop delivery pipeline opts out: the workbench no longer
+  // surfaces a "complete post-session report" deliverable.
+  if (options.includeHtml !== false) {
+    await writeFile(join(output, "index.html"), renderScorecardHtml(input), "utf8");
+    files.push("index.html");
+    emitProgress("report", "running", "Post-session report is ready.", 1);
+  } else {
+    emitProgress("report", "running", "Session scorecards are ready.", 1);
+  }
   return { outputDirectory: output, files, analytics: analysis.analytics };
 }
 

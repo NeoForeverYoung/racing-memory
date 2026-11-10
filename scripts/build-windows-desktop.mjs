@@ -1,5 +1,5 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
@@ -44,9 +44,13 @@ copyFileSync(ffmpeg, resolve(resources, "ffmpeg.exe"));
 copyFileSync(ffprobe, resolve(resources, "ffprobe.exe"));
 copyFileSync(resolve(publicAssets, "tracks.json"), resolve(resources, "tracks.json"));
 copyFileSync(resolve(publicAssets, "drawings.json"), resolve(resources, "drawings.json"));
-const bundle = spawnSync("bunx", ["tauri", "build", "--no-bundle", "--target", windowsTarget], { cwd: desktop, stdio: "inherit" });
+// `bun x` is equivalent to `bunx` but also works on installs that only ship bun.exe.
+const bundle = spawnSync("bun", ["x", "tauri", "build", "--no-bundle", "--target", windowsTarget], { cwd: desktop, stdio: "inherit" });
 if (bundle.status !== 0) process.exit(bundle.status ?? 1);
-const portable = resolve(root, "dist/RacingMemory-win11-x64");
+// A running portable build locks its own directory on Windows. Allow a
+// separate output directory so a rebuild never has to close the running app.
+const portableRelative = process.env.RACING_MEMORY_PORTABLE_DIR ?? "dist/RacingMemory-win11-x64";
+const portable = resolve(root, portableRelative);
 rmSync(portable, { recursive: true, force: true });
 mkdirSync(portable, { recursive: true });
 copyFileSync(resolve(tauri, "target", windowsTarget, "release/racing-memory-desktop.exe"), resolve(portable, "RacingMemory.exe"));
@@ -92,8 +96,27 @@ const buildInfo = {
   modules: { desktop: "0.1.0", web: "full", cli: "delivery-generate-v1" },
 };
 writeFileSync(resolve(portable, "build-info.json"), `${JSON.stringify(buildInfo, null, 2)}\n`);
-const archive = spawnSync("powershell", ["-NoProfile", "-Command", "Compress-Archive -Path 'dist/RacingMemory-win11-x64' -DestinationPath 'dist/RacingMemory-win11-x64.zip' -Force"], { cwd: root, stdio: "inherit" });
+// Windows Defender can briefly lock the freshly copied ffmpeg/ffprobe binaries,
+// which makes Compress-Archive fail with "being used by another process".
+// Use the .NET zip API and retry on transient file locks.
+const zipCommand = [
+  "$ErrorActionPreference = 'Stop'",
+  "Add-Type -AssemblyName System.IO.Compression.FileSystem",
+  `$src = (Resolve-Path '${portableRelative}').Path`,
+  `$dst = Join-Path (Get-Location) '${portableRelative}.zip'`,
+  "for ($i = 0; $i -lt 5; $i++) {",
+  "  try {",
+  "    if (Test-Path $dst) { Remove-Item $dst -Force }",
+  "    [System.IO.Compression.ZipFile]::CreateFromDirectory($src, $dst, [System.IO.Compression.CompressionLevel]::Optimal, $false)",
+  "    break",
+  "  } catch {",
+  "    if ($i -eq 4) { throw }",
+  "    Start-Sleep -Seconds 3",
+  "  }",
+  "}",
+].join("; ");
+const archive = spawnSync("powershell", ["-NoProfile", "-Command", zipCommand], { cwd: root, stdio: "inherit" });
 if (archive.status !== 0) process.exit(archive.status ?? 1);
-const archivePath = resolve(root, "dist/RacingMemory-win11-x64.zip");
+const archivePath = resolve(root, `${portableRelative}.zip`);
 const sha256 = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
-writeFileSync(`${archivePath}.sha256`, `${sha256}  RacingMemory-win11-x64.zip\n`);
+writeFileSync(`${archivePath}.sha256`, `${sha256}  ${basename(portableRelative)}.zip\n`);

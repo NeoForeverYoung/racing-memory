@@ -20,6 +20,23 @@ describe("jobStore", () => {
     expect(manifest.steps.find((step) => step.id === "training")?.dependsOn).toEqual(["insights"]);
   });
 
+  it("omits the retired reel step from the full delivery preset", () => {
+    const job = createDeliveryJob({
+      bundlePath: "/tmp/session.bundle.json",
+      outputDirectory: "/tmp/delivery",
+      preset: "full",
+    });
+    const ids = job.steps.map((step) => step.id);
+    expect(ids).not.toContain("reel");
+    expect(ids).toContain("assets");
+    expect(ids).toContain("report");
+    expect(job.steps.find((step) => step.id === "delivery")?.dependsOn).toEqual([
+      "assets",
+      "report",
+      "training",
+    ]);
+  });
+
   it("uses stable hashes for equivalent values", () => {
     expect(hashValue({ b: 2, a: 1 })).toBe(hashValue({ a: 1, b: 2 }));
   });

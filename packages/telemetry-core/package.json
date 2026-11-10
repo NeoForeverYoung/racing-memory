@@ -1,7 +1,7 @@
 {
   "name": "@lapwing/telemetry-core",
   "private": true,
-  "version": "5.1.1",
+  "version": "5.1.2",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

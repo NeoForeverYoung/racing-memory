@@ -31,7 +31,7 @@
     },
     "apps/cli": {
       "name": "@lapwing/cli",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "bin": {
         "lapwing": "./src/lapwing.ts",
       },
@@ -64,7 +64,7 @@
     },
     "apps/web": {
       "name": "@lapwing/web",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -118,7 +118,7 @@
     },
     "apps/windows-companion": {
       "name": "@lapwing/windows-companion",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "dependencies": {
         "@lapwing/game-adapter-f1": "workspace:*",
         "@lapwing/game-adapter-iracing": "workspace:*",
@@ -135,7 +135,7 @@
     },
     "packages/game-adapter-f1": {
       "name": "@lapwing/game-adapter-f1",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "dependencies": {
         "@lapwing/game-adapter-kit": "workspace:*",
         "@lapwing/telemetry-core": "workspace:*",
@@ -143,7 +143,7 @@
     },
     "packages/game-adapter-iracing": {
       "name": "@lapwing/game-adapter-iracing",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "dependencies": {
         "@lapwing/game-adapter-kit": "workspace:*",
         "@lapwing/telemetry-core": "workspace:*",
@@ -151,18 +151,18 @@
     },
     "packages/game-adapter-kit": {
       "name": "@lapwing/game-adapter-kit",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "dependencies": {
         "@lapwing/telemetry-core": "workspace:*",
       },
     },
     "packages/hardware-plugin": {
       "name": "@lapwing/hardware-plugin",
-      "version": "5.1.1",
+      "version": "5.1.2",
     },
     "packages/media": {
       "name": "@lapwing/media",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "dependencies": {
         "@lapwing/game-adapter-kit": "workspace:*",
         "@lapwing/telemetry-core": "workspace:*",
@@ -170,7 +170,7 @@
     },
     "packages/telemetry-core": {
       "name": "@lapwing/telemetry-core",
-      "version": "5.1.1",
+      "version": "5.1.2",
     },
   },
   "packages": {

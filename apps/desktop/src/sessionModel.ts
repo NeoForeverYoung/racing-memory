@@ -111,10 +111,8 @@ export const DELIVERY_STEPS = [
   { id: "inspect", label: "资料检查" },
   { id: "sync", label: "视频同步" },
   { id: "analyze", label: "圈速分析" },
-  { id: "memory", label: "回忆片段检测" },
-  { id: "reel", label: "Racing Memory Reel" },
   { id: "assets", label: "最快圈 / OPT / 纪念图" },
-  { id: "report", label: "赛后报告与成绩单" },
+  { id: "report", label: "赛后成绩单" },
   { id: "insights", label: "驾驶建议" },
   { id: "training", label: "下次练习卡" },
   { id: "delivery", label: "整理交付物" },
@@ -136,9 +134,26 @@ function extension(path: string): string {
   return match?.[0] ?? "";
 }
 
+// Retired deliverables. Older Sessions still declare these in their cached
+// delivery-manifest.json, and the fallback asset scan can still find the files
+// on disk, so they must be filtered here as well as in the generation pipeline.
+const RETIRED_DELIVERABLE_TITLES = new Set(["Racing Memory 回忆视频", "完整赛后报告"]);
+
+export function isRetiredDeliverable(asset: LocalSessionAsset): boolean {
+  const name = asset.path.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
+  return name === "reel.mp4"
+    || name === "index.html"
+    || (asset.title !== null && asset.title !== undefined && RETIRED_DELIVERABLE_TITLES.has(asset.title))
+    || asset.role === "primary-video"
+    || asset.role === "report"
+    || asset.group === "report";
+}
+
 export function visibleSessionAssets(assets: LocalSessionAsset[]): LocalSessionAsset[] {
   return assets
-    .filter((asset) => asset.available && USER_ASSET_EXTENSIONS.has(extension(asset.path)))
+    .filter((asset) => asset.available
+      && USER_ASSET_EXTENSIONS.has(extension(asset.path))
+      && !isRetiredDeliverable(asset))
     .sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER));
 }
 
@@ -151,10 +166,8 @@ export function assetDisplayLabel(asset: LocalSessionAsset): string {
   const name = asset.path.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
   if (name.includes("fastest-available-lap")) return "最快完整圈";
   if (name.includes("opt-composite")) return "OPT 合成圈";
-  if (name === "reel.mp4") return "Racing Memory 回忆视频";
   if (name.includes("session-memento")) return "Session 纪念图";
   if (name.startsWith("scorecard-")) return "赛后成绩单";
-  if (name === "index.html") return "完整赛后报告";
   return asset.kind;
 }
 

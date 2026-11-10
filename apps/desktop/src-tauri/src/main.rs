@@ -1,3 +1,7 @@
+// Release builds must be GUI-subsystem apps, otherwise Windows allocates a
+// console window on every double-click launch. This is a crate-level attribute.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
@@ -6,6 +10,12 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+/// Windows GUI builds must not allocate a console for console-mode helpers.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 use rand::RngCore;
@@ -447,6 +457,24 @@ where
     Ok(updated)
 }
 
+// The memory reel (reel.mp4) and the full HTML post-session report
+// (report/index.html) are retired deliverables. Older Sessions still declare
+// them in their cached delivery manifest, and the fallback scan can still find
+// the files on disk, so both paths must filter them out.
+fn is_retired_deliverable(
+    path: &Path,
+    role: Option<&str>,
+    group: Option<&str>,
+    title: Option<&str>,
+) -> bool {
+    let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+    name == "reel.mp4"
+        || name == "index.html"
+        || matches!(title, Some("Racing Memory 回忆视频" | "完整赛后报告"))
+        || matches!(role, Some("primary-video" | "report"))
+        || matches!(group, Some("report"))
+}
+
 fn scan_assets(session_directory: &Path) -> Vec<LocalSessionAsset> {
     let delivery_directory = session_directory.join("delivery");
     let manifest_path = delivery_directory.join("delivery-manifest.json");
@@ -454,6 +482,9 @@ fn scan_assets(session_directory: &Path) -> Vec<LocalSessionAsset> {
         if manifest.schema_version == 1 {
             let mut declared = manifest.items.into_iter().filter_map(|item| {
                 let relative = Path::new(&item.path);
+                if is_retired_deliverable(relative, Some(&item.role), Some(&item.group), Some(&item.title)) {
+                    return None;
+                }
                 if relative.components().any(|component| !matches!(component, std::path::Component::Normal(_))) {
                     return None;
                 }
@@ -492,6 +523,9 @@ fn scan_assets(session_directory: &Path) -> Vec<LocalSessionAsset> {
             }
             let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("");
             if !matches!(extension, "mp4" | "png" | "svg" | "html" | "json") {
+                continue;
+            }
+            if is_retired_deliverable(&path, None, None, None) {
                 continue;
             }
             assets.push(LocalSessionAsset {
@@ -580,6 +614,8 @@ fn run_sidecar(
     let ffprobe = resources.join("ffprobe.exe");
     let executable = resources.join("lapwing-x86_64-pc-windows-msvc.exe");
     let mut command = Command::new(executable);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
     command
         .args(args)
         .env("RACING_MEMORY_FFMPEG", ffmpeg)
@@ -594,6 +630,9 @@ fn run_sidecar(
     if let Some(path) = progress_file {
         command.env("RACING_MEMORY_PROGRESS_FILE", path);
     }
+    // The CLI reports failures as one structured JSON line on stderr. Keep it
+    // so the desktop UI can show the real reason instead of a bare exit code.
+    let (error_tx, error_rx) = std::sync::mpsc::channel::<(String, String)>();
     let mut child = command.spawn().map_err(|error| format!("Cannot start the bundled engine: {error}"))?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
@@ -614,6 +653,15 @@ fn run_sidecar(
                 } else {
                     "info"
                 };
+                if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                    if let Some(error) = value.get("error") {
+                        let code = error.get("code").and_then(Value::as_str).unwrap_or("COMMAND_FAILED").to_owned();
+                        let message = error.get("message").and_then(Value::as_str).unwrap_or("").to_owned();
+                        if !message.is_empty() {
+                            let _ = error_tx.send((code, message));
+                        }
+                    }
+                }
                 event(&stderr_app, kind, level, line);
             }
         }
@@ -625,10 +673,35 @@ fn run_sidecar(
     drop(stdout_reader);
     drop(stderr_reader);
     if status.success() {
-        Ok(())
-    } else {
-        Err(format!("Engine stopped with exit {:?}.", status.code()))
+        return Ok(());
     }
+    // Reader threads are detached on purpose (a grandchild may hold the pipe
+    // open), so give a structured error line a short window to arrive.
+    let detail = error_rx.recv_timeout(Duration::from_secs(1)).ok();
+    Err(match detail {
+        Some((code, message)) => format!("{} (engine exit {:?})", sidecar_error_message(&code, &message), status.code()),
+        None => format!("Engine stopped with exit {:?}.", status.code()),
+    })
+}
+
+/// Turn the engine's structured failure into something the user can act on.
+/// Sync review is the one case the UI can resolve by ticking a checkbox, so it
+/// gets an explicit instruction rather than the raw English CLI message.
+fn sidecar_error_message(code: &str, message: &str) -> String {
+    match code {
+        "SYNC_REVIEW_REQUIRED" | "SYNC_LOW_CONFIDENCE" => {
+            "遥测与录像的时间轴需要人工复核。请在「生成与重试」中勾选「我已检查同步，允许低置信度时间轴继续生成」后重试。".to_owned()
+        }
+        _ => format!("{message} [{code}]"),
+    }
+}
+
+/// `delivery run --preset full` writes the recomputed sync back into the bundle
+/// before it can fail. Read it from there so the Session record does not keep
+/// claiming that no review is needed after such a failure.
+fn bundle_sync_state(bundle_path: &Path) -> Option<BundleSync> {
+    let raw: Value = read_json(bundle_path).ok()?;
+    serde_json::from_value(raw.get("sync")?.clone()).ok()
 }
 
 #[tauri::command]
@@ -876,14 +949,17 @@ fn open_local_path(path: String) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        Command::new("powershell.exe")
+        let mut command = Command::new("powershell.exe");
+        command
             .args([
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
                 "Start-Process -FilePath $env:RACING_MEMORY_OPEN_PATH",
             ])
-            .env("RACING_MEMORY_OPEN_PATH", &path)
+            .env("RACING_MEMORY_OPEN_PATH", &path);
+        command.creation_flags(CREATE_NO_WINDOW);
+        command
             .spawn()
             .map_err(|error| format!("Could not open local file: {error}"))?;
         Ok(())
@@ -1164,11 +1240,16 @@ fn open_web_analysis(session_id: String) -> Result<String, String> {
         }
     });
     #[cfg(target_os = "windows")]
-    Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", "Start-Process $env:RACING_MEMORY_ANALYSIS_URL"])
-        .env("RACING_MEMORY_ANALYSIS_URL", &url)
-        .spawn()
-        .map_err(|error| format!("Could not open LapWing analysis: {error}"))?;
+    {
+        let mut command = Command::new("powershell.exe");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command", "Start-Process $env:RACING_MEMORY_ANALYSIS_URL"])
+            .env("RACING_MEMORY_ANALYSIS_URL", &url);
+        command.creation_flags(CREATE_NO_WINDOW);
+        command
+            .spawn()
+            .map_err(|error| format!("Could not open LapWing analysis: {error}"))?;
+    }
     #[cfg(not(target_os = "windows"))]
     Command::new("open")
         .arg(&url)
@@ -1223,6 +1304,10 @@ fn run_delivery(app: AppHandle, request: DeliveryRequest) -> Result<(), String> 
                 let _ = update_session(&data_root, &session_id, |session| {
                     session.delivery_status = "failed".to_owned();
                     session.delivery_error = Some(error.clone());
+                    if let Some(sync) = bundle_sync_state(Path::new(&session.bundle_path)) {
+                        session.sync_confidence = Some(sync.confidence);
+                        session.sync_requires_review = sync.requires_review;
+                    }
                 });
                 event_for_session(&app, "delivery", "error", error, Some(&session_id));
             }
@@ -1255,8 +1340,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        import_progress_directory, inject_desktop_session_meta, needs_analysis_bootstrap_redirect,
-        parse_range, scan_assets, sha256_file, LocalSessionAsset,
+        bundle_sync_state, import_progress_directory, inject_desktop_session_meta,
+        needs_analysis_bootstrap_redirect, parse_range, scan_assets, sha256_file,
+        sidecar_error_message, LocalSessionAsset,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1288,23 +1374,53 @@ mod tests {
         let delivery = root.join("delivery");
         let report = delivery.join("report");
         fs::create_dir_all(&report).unwrap();
-        fs::write(report.join("index.html"), "report").unwrap();
+        fs::write(report.join("scorecard-summary.png"), "png").unwrap();
         fs::write(delivery.join("delivery-manifest.json"), r#"{
           "schemaVersion": 1,
           "items": [{
-            "id": "report",
-            "role": "report",
-            "group": "report",
-            "title": "完整赛后报告",
-            "path": "report/index.html",
-            "mediaType": "text/html",
+            "id": "scorecard",
+            "role": "scorecard",
+            "group": "overview",
+            "title": "赛后成绩单",
+            "path": "report/scorecard-summary.png",
+            "mediaType": "image/png",
             "order": 10
           }]
         }"#).unwrap();
         let found = scan_assets(&root);
         assert_eq!(found.len(), 1);
-        assert_eq!(found[0].title.as_deref(), Some("完整赛后报告"));
-        assert_eq!(found[0].group.as_deref(), Some("report"));
+        assert_eq!(found[0].title.as_deref(), Some("赛后成绩单"));
+        assert_eq!(found[0].group.as_deref(), Some("overview"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn scan_assets_drops_retired_reel_and_html_report() {
+        let root = std::env::temp_dir().join(format!(
+            "racing-memory-retired-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let delivery = root.join("delivery");
+        let report = delivery.join("report");
+        fs::create_dir_all(&report).unwrap();
+        fs::write(report.join("index.html"), "report").unwrap();
+        fs::write(report.join("scorecard-summary.png"), "png").unwrap();
+        fs::write(delivery.join("reel.mp4"), "reel").unwrap();
+        fs::write(delivery.join("fastest-available-lap.mp4"), "lap").unwrap();
+        fs::write(delivery.join("delivery-manifest.json"), r#"{
+          "schemaVersion": 1,
+          "items": [
+            {"id": "reel", "role": "primary-video", "group": "video", "title": "Racing Memory 回忆视频", "path": "reel.mp4", "mediaType": "video/mp4", "order": 10},
+            {"id": "report", "role": "report", "group": "report", "title": "完整赛后报告", "path": "report/index.html", "mediaType": "text/html", "order": 20},
+            {"id": "scorecard", "role": "scorecard", "group": "overview", "title": "赛后成绩单", "path": "report/scorecard-summary.png", "mediaType": "image/png", "order": 30},
+            {"id": "fastest", "role": "supporting-video", "group": "video", "title": "最快完整圈", "path": "fastest-available-lap.mp4", "mediaType": "video/mp4", "order": 40}
+          ]
+        }"#).unwrap();
+        let found = scan_assets(&root);
+        assert_eq!(
+            found.iter().map(|item| item.title.as_deref().unwrap_or("")).collect::<Vec<_>>(),
+            vec!["赛后成绩单", "最快完整圈"]
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -1334,6 +1450,36 @@ mod tests {
             "abc123",
         );
         assert!(html.contains(r#"<meta name="lapwing-desktop-session" content="abc123">"#));
+    }
+
+    #[test]
+    fn sync_failure_becomes_an_actionable_message() {
+        let text = sidecar_error_message(
+            "SYNC_REVIEW_REQUIRED",
+            "Automatic synchronization needs review.",
+        );
+        assert!(text.contains("勾选"));
+        assert!(!text.contains("Automatic"));
+    }
+
+    #[test]
+    fn other_engine_failures_keep_the_original_diagnostic() {
+        let text = sidecar_error_message("FILE_NOT_FOUND", "Bundle input not found: race.ibt");
+        assert!(text.contains("Bundle input not found: race.ibt"));
+        assert!(text.contains("FILE_NOT_FOUND"));
+    }
+
+    #[test]
+    fn reads_recomputed_sync_state_from_a_bundle() {
+        let path = std::env::temp_dir().join(format!(
+            "racing-memory-sync-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        fs::write(&path, r#"{"sync":{"confidence":"low","requiresReview":true}}"#).unwrap();
+        let sync = bundle_sync_state(&path).unwrap();
+        assert_eq!(sync.confidence, "low");
+        assert!(sync.requires_review);
+        fs::remove_file(&path).unwrap();
     }
 
     #[test]

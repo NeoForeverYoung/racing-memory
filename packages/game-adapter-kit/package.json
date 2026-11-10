@@ -1,7 +1,7 @@
 {
   "name": "@lapwing/game-adapter-kit",
   "private": true,
-  "version": "5.1.1",
+  "version": "5.1.2",
   "type": "module",
   "dependencies": {
     "@lapwing/telemetry-core": "workspace:*"

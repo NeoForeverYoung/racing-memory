@@ -1,8 +1,8 @@
 # Racing Memory Windows 用户指南
 
 Racing Memory 是一款本地运行的 iRacing 赛后整理与复盘工具。它可以读取
-iRacing 的 `.ibt` 遥测文件，生成成绩单、离线报告和训练建议；提供比赛录像时，
-还可以生成 Racing Memory Reel、最快完整圈和 OPT 合成圈。
+iRacing 的 `.ibt` 遥测文件，生成成绩单和训练建议；提供比赛录像时，
+还可以生成最快完整圈和 OPT 合成圈视频。
 
 遥测、录像和分析都留在你的电脑上，不会上传到服务器。
 
@@ -19,7 +19,7 @@ LapWing 分析页面。普通用户**不需要**安装 Bun、Node.js、Rust、Py
 
 | 使用方式 | iRacing | OBS Studio |
 | --- | --- | --- |
-| 导入已有 `.ibt`，生成成绩单和报告 | 不需要正在运行 | 不需要 |
+| 导入已有 `.ibt`，生成成绩单 | 不需要正在运行 | 不需要 |
 | 导入 `.ibt` 和已有录像，生成完整视频 | 不需要正在运行 | 不需要 |
 | 自动录制下一场比赛 | 需要 | 需要单独安装 |
 
@@ -45,7 +45,7 @@ Get-FileHash .\RacingMemory-win11-x64.zip -Algorithm SHA256
 
 1. **Racing Memory 数据目录**
 
-   用于保存 Session、归档后的 IBT、成绩单、报告和生成的视频。建议选择空间充足、
+   用于保存 Session、归档后的 IBT、成绩单和生成的视频。建议选择空间充足、
    不受 OneDrive 同步影响的本机目录，例如 `D:\RacingMemoryData`。
 2. **iRacing IBT 目录**
 
@@ -62,14 +62,13 @@ Get-FileHash .\RacingMemory-win11-x64.zip -Algorithm SHA256
 1. 在首页找到“从 IBT 和录像重新生成”。
 2. 点击“IBT 文件路径”右侧的“浏览…”，选择一个 `.ibt` 文件。
 3. 录像留空。
-4. 选择“成绩单与报告”。
+4. 选择“成绩单”。
 5. 点击“创建 Session 并生成”。
 6. 等待进度页完成，应用会自动进入 Session Result。
 
 结果通常包括：
 
 - 一张 PNG 赛后成绩单；
-- 一份可离线打开的 HTML 赛后报告；
 - 圈速、赛道与驾驶建议数据；
 - “在 LapWing 中深度分析”入口。
 
@@ -84,11 +83,11 @@ Get-FileHash .\RacingMemory-win11-x64.zip -Algorithm SHA256
    同一场比赛，并准备在 LapWing 中复核时间轴时，才勾选继续生成。
 5. 点击“创建 Session 并生成”，保持应用打开直到完成。
 
-除成绩单和报告外，完整模式还会生成：
+除成绩单外，完整模式还会生成：
 
-- Racing Memory Reel；
 - 最快完整圈视频；
-- OPT 最佳区间合成圈。
+- OPT 最佳区间合成圈；
+- Session 纪念图。
 
 视频编码可能需要数分钟。时长取决于录像长度、分辨率、硬盘速度和 CPU；处理大型录像时
 进度暂时停留在某个阶段并不一定代表程序卡死。
@@ -137,7 +136,7 @@ irsdkLimitFileSize=0
 ## 7. 查看和管理结果
 
 - “历史 Session”列出所有已保存的比赛。
-- Session Result 可打开成绩单、完整报告、生成视频和交付目录。
+- Session Result 可打开成绩单、生成视频和交付目录。
 - “在 LapWing 中深度分析”会用默认浏览器打开本机 `127.0.0.1` 临时页面，展示地图、
   圈速、遥测曲线和同步录像；这不是互联网服务器，不会上传文件。
 - “重新扫描目录”可以在 Registry 损坏或手动恢复 Session 文件夹后重建列表。
@@ -167,7 +166,7 @@ irsdkLimitFileSize=0
 
 ### “完整视频交付”不可选
 
-必须先选择录像文件。没有录像时只能生成成绩单和报告。
+必须先选择录像文件。没有录像时只能生成成绩单。
 
 ### 同步置信度较低
 
@@ -193,6 +192,6 @@ irsdkLimitFileSize=0
 
 ## 10. 隐私说明
 
-Racing Memory 的核心流程离线运行。IBT、录像、Session、成绩单和报告保存在本机。
+Racing Memory 的核心流程离线运行。IBT、录像、Session 和成绩单保存在本机。
 打开 LapWing 深度分析时使用的也是本机临时服务。请像管理普通比赛录像一样备份重要的
 Session 数据目录。

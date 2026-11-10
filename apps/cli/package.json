@@ -1,7 +1,7 @@
 {
   "name": "@lapwing/cli",
   "private": true,
-  "version": "5.1.1",
+  "version": "5.1.2",
   "type": "module",
   "bin": {
     "lapwing": "./src/lapwing.ts"

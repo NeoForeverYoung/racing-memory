@@ -100,13 +100,11 @@ export function createDeliveryJob(options: {
       { id: "inspect", command: "inspect" },
       { id: "sync", command: "sync suggest", dependsOn: ["inspect"] },
       { id: "analyze", command: "analyze", dependsOn: ["inspect"] },
-      { id: "memory", command: "memory detect", dependsOn: ["inspect", "sync"] },
-      { id: "reel", command: "memory reel", dependsOn: ["memory"] },
       { id: "assets", command: "session render", dependsOn: ["analyze", "sync"] },
       { id: "report", command: "report render", dependsOn: ["analyze"] },
       { id: "insights", command: "coach insights", dependsOn: ["analyze"] },
       { id: "training", command: "training card", dependsOn: ["insights"] },
-      { id: "delivery", command: "delivery manifest", dependsOn: ["reel", "assets", "report", "training"] },
+      { id: "delivery", command: "delivery manifest", dependsOn: ["assets", "report", "training"] },
     ];
   return createJobManifest({
     jobId: randomUUID(),

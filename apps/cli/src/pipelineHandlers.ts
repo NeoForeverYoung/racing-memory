@@ -66,6 +66,8 @@ export function createPipelineHandlers(): PipelineHandlers {
         bundlePath,
         resolve(outputDirectory, "report"),
         optionNumber(manifest.options, "images", 1),
+        [],
+        { includeHtml: false },
       ),
     insights: ({ bundlePath }) => generateBundleInsights(bundlePath),
     training: async ({ bundlePath }) => selectTrainingCard(await generateBundleInsights(bundlePath)),

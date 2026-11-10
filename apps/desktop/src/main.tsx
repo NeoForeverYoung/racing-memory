@@ -605,7 +605,7 @@ function ImportSession({ importTelemetryPath, setImportTelemetryPath, pickImport
         <PathField label="IBT 文件路径" value={importTelemetryPath} onChange={setImportTelemetryPath} onBrowse={pickImportTelemetryPath} placeholder="C:\Users\...\Documents\iRacing\telemetry\race.ibt" />
         <PathField label="视频文件路径（可选）" value={importVideoPath} onChange={setImportVideoPath} onBrowse={pickImportVideoPath} placeholder="D:\Recordings\race.mp4" />
         <div className="preset-buttons" role="group" aria-label="生成档位">
-          <button className={importPreset === "scorecard" ? "selected" : ""} type="button" onClick={() => setImportPreset("scorecard")}>成绩单与报告</button>
+          <button className={importPreset === "scorecard" ? "selected" : ""} type="button" onClick={() => setImportPreset("scorecard")}>仅成绩单</button>
           <button className={importPreset === "full" ? "selected" : ""} type="button" disabled={!importVideoPath.trim()} onClick={() => setImportPreset("full")}>完整视频交付</button>
         </div>
         {importPreset === "full" && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />若录像时间轴无法自动确认，允许继续生成；完成后我会在 LapWing 中复核同步。</label>}
@@ -699,11 +699,7 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
   const showProgress = busy || Object.keys(progress).length > 0;
   const visibleAssets = visibleSessionAssets(session.assets);
   const videoAssets = visibleAssets.filter((asset) => asset.group === "video" || asset.path.toLowerCase().endsWith(".mp4"));
-  const overviewAssets = visibleAssets.filter((asset) => asset.group === "overview");
-  const reportAssets = visibleAssets.filter((asset) =>
-    asset.group === "report"
-    || (!asset.group && !asset.path.toLowerCase().endsWith(".mp4") && !overviewAssets.includes(asset)),
-  );
+  const overviewAssets = visibleAssets.filter((asset) => !videoAssets.includes(asset));
   return <>
     <section className="hero workspace-header"><div><p className="eyebrow">SESSION WORKSPACE</p><h1>{sessionTitle(session)}</h1><p>{sessionDate(session.createdAt)} · {session.game} · {session.sessionType ?? "Session"}</p></div><button className="secondary" type="button" onClick={onBack}>返回历史库</button></section>
     <nav className="session-tabs" aria-label="Session 工作区">
@@ -724,20 +720,19 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
     {section === "generate" && <>
       <section className="section-head"><div><p className="eyebrow">DELIVERY</p><h2>生成或重新生成交付物</h2><p>选择要在这台电脑上生成的内容；完成后会保留在当前 Session。</p></div></section>
       {session.deliveryError && <div className="notice error"><span>{session.deliveryError}</span></div>}
-      {session.syncRequiresReview && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />我已检查同步，允许低置信度时间轴继续生成。</label>}
+      {session.videoAvailable && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />我已检查同步，允许低置信度时间轴继续生成。</label>}
       {showProgress && <DeliveryProgressPanel progress={progress} />}
-      <section className="delivery-card"><div><h2>选择生成档位</h2><p>成绩单模式只需要 IBT；完整模式会额外生成最快圈、OPT 和 Racing Memory Reel。所有文件只保存在本机。</p></div><div className="delivery-actions"><button className="secondary" type="button" disabled={busy} onClick={() => onGenerate("scorecard")}>{busy ? "正在生成…" : "生成成绩单与报告"}</button><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={() => onGenerate("full")}>生成完整视频交付</button></div></section>
+      <section className="delivery-card"><div><h2>选择生成档位</h2><p>成绩单模式只需要 IBT；完整模式会额外生成最快完整圈、OPT 合成圈和纪念图。所有文件只保存在本机。</p></div><div className="delivery-actions"><button className="secondary" type="button" disabled={busy} onClick={() => onGenerate("scorecard")}>{busy ? "正在生成…" : "生成成绩单"}</button><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={() => onGenerate("full")}>生成完整视频交付</button></div></section>
       {!session.videoAvailable && <div className="notice"><span>原始录像目前不可用，因此不能生成视频交付物；已归档的遥测和本地 Session 信息仍可保留。</span></div>}
       {!busy && session.deliveryStatus === "succeeded" && <button className="primary" type="button" onClick={() => onSection("deliverables")}>查看已生成交付物</button>}
     </>}
     {section === "deliverables" && <>
       <section className="section-head"><div><p className="eyebrow">DELIVERABLES</p><h2>赛后交付物</h2><p>仅显示面向复盘的文件；诊断文件不会混在这里。</p></div><button className="secondary" type="button" onClick={() => onOpenAsset(`${session.sessionDirectory}\\delivery`)}>打开交付目录</button></section>
       {visibleAssets.length === 0
-        ? <EmptyState title="尚未生成可查看的赛后产物" detail="在“生成与重试”中完成交付后，这里会显示主成绩单、可播放的视频和完整赛后报告。" />
+        ? <EmptyState title="尚未生成可查看的赛后产物" detail="在“生成与重试”中完成交付后，这里会显示赛后成绩单和可播放的视频。" />
         : <>
-          <AssetGroup title="一页总结" detail="快速了解这场比赛最重要的结果。" assets={overviewAssets} onOpen={onOpenAsset} />
-          <AssetGroup title="比赛视频" detail="回看精彩片段、最快完整圈和理论 OPT。" assets={videoAssets} onOpen={onOpenAsset} />
-          <AssetGroup title="完整报告" detail="查看逐圈表现、驾驶机会、训练建议和数据质量。" assets={reportAssets} onOpen={onOpenAsset} />
+          <AssetGroup title="一页总结" detail="成绩单与纪念图，快速了解这场比赛最重要的结果。" assets={overviewAssets} onOpen={onOpenAsset} />
+          <AssetGroup title="比赛视频" detail="回看最快完整圈和理论 OPT。" assets={videoAssets} onOpen={onOpenAsset} />
         </>}
     </>}
   </>;
@@ -795,7 +790,7 @@ function Settings({ settings, buildInfo, obsReadiness, busy, onPickDirectory, on
       <p className="obs-inline-status"><span className={obs.good ? "status good" : "status bad"}>{obs.value}</span>{obs.detail}</p>
     </aside>
     <form className="settings-form" onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
-      <PathField label="Racing Memory 数据目录" value={draft.dataRoot} onChange={(dataRoot) => setDraft((current) => ({ ...current, dataRoot }))} onBrowse={() => onPickDirectory(draft.dataRoot, (dataRoot) => setDraft((current) => ({ ...current, dataRoot })))} help="Session、IBT 归档、成绩单和报告将保存在这里。原始 OBS 录像不会复制进来。" />
+      <PathField label="Racing Memory 数据目录" value={draft.dataRoot} onChange={(dataRoot) => setDraft((current) => ({ ...current, dataRoot }))} onBrowse={() => onPickDirectory(draft.dataRoot, (dataRoot) => setDraft((current) => ({ ...current, dataRoot })))} help="Session、IBT 归档和成绩单将保存在这里。原始 OBS 录像不会复制进来。" />
       <PathField label="iRacing IBT 目录" value={draft.telemetryDirectory} onChange={(telemetryDirectory) => setDraft((current) => ({ ...current, telemetryDirectory }))} onBrowse={() => onPickDirectory(draft.telemetryDirectory, (telemetryDirectory) => setDraft((current) => ({ ...current, telemetryDirectory })))} help="比赛结束后，Desktop 会在此等待 iRacing 完成遥测写入。" />
       <Field label="OBS WebSocket 地址" value={draft.obsUrl} onChange={(obsUrl) => setDraft((current) => ({ ...current, obsUrl }))} help="通常为 ws://127.0.0.1:4455；保存后首页会自动检测 OBS 是否在线。" />
       <button className="primary" disabled={busy} type="submit">{busy ? "正在保存…" : "保存本地设置"}</button>

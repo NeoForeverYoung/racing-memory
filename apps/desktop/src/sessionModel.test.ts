@@ -44,13 +44,32 @@ describe("local desktop session presentation", () => {
   it("parses engine progress and computes the overall percentage", () => {
     const inspect = parseDeliveryProgress('{"type":"progress","step":"inspect","status":"completed","percent":1}');
     const sync = parseDeliveryProgress('{"type":"progress","step":"sync","status":"started"}');
-    const reel = parseDeliveryProgress('{"type":"progress","step":"reel","status":"running","percent":0.47}');
+    const assets = parseDeliveryProgress('{"type":"progress","step":"assets","status":"running","percent":0.47}');
 
     expect(inspect).toMatchObject({ step: "inspect", status: "completed", percent: 100 });
     expect(sync).toMatchObject({ step: "sync", status: "started", percent: 0 });
-    expect(reel).toMatchObject({ step: "reel", status: "started", percent: 47 });
-    expect(deliveryOverallPercent({ inspect: inspect!, sync: sync! })).toBe(10);
+    expect(assets).toMatchObject({ step: "assets", status: "started", percent: 47 });
+    expect(deliveryOverallPercent({ inspect: inspect!, sync: sync! })).toBe(13);
     expect(parseDeliveryProgress("not json")).toBeNull();
+    // Removed delivery steps must not leak back into the progress panel.
+    expect(parseDeliveryProgress('{"type":"progress","step":"reel","status":"running"}')).toBeNull();
+    expect(parseDeliveryProgress('{"type":"progress","step":"memory","status":"running"}')).toBeNull();
+  });
+
+  it("hides retired reel and full HTML report assets while keeping other videos", () => {
+    const retiredReel = { kind: "primary-video", path: "C:\\delivery\\reel.mp4", available: true, title: "Racing Memory 回忆视频", group: "video" as const, role: "primary-video" as const };
+    const retiredReport = { kind: "report", path: "C:\\delivery\\report\\index.html", available: true, title: "完整赛后报告", group: "report" as const, role: "report" as const };
+    const fastestLap = { kind: "supporting-video", path: "C:\\delivery\\fastest-available-lap.mp4", available: true, title: "最快完整圈", group: "video" as const, role: "supporting-video" as const };
+    const scorecard = { kind: "scorecard", path: "C:\\delivery\\report\\scorecard-summary.png", available: true, title: "赛后成绩单", group: "overview" as const, role: "scorecard" as const };
+
+    expect(visibleSessionAssets([retiredReel, retiredReport, fastestLap, scorecard]))
+      .toEqual([fastestLap, scorecard]);
+    // A legacy asset with no manifest metadata is still recognized by file name.
+    expect(visibleSessionAssets([
+      { kind: "reel", path: "C:\\delivery\\reel.mp4", available: true },
+      { kind: "report", path: "C:\\delivery\\report\\index.html", available: true },
+      fastestLap,
+    ])).toEqual([fastestLap]);
   });
 
   it("keeps the Session result focused on human-readable deliverables", () => {

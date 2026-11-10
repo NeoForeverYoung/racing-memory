@@ -49,15 +49,6 @@ export async function createDeliveryManifest(options: {
   const assets = readSessionAssets(outputDirectory);
   const items: DeliveryManifestItem[] = [];
 
-  addIfPresent(items, outputDirectory, resolve(outputDirectory, "reel.mp4"), {
-    id: "memory-reel",
-    role: "primary-video",
-    group: "video",
-    title: "Racing Memory 回忆视频",
-    description: "自动挑选本场最值得回看的片段。",
-    mediaType: "video/mp4",
-    order: 10,
-  });
   addIfPresent(items, outputDirectory, assets.fastestAvailablePath, {
     id: "fastest-lap-video",
     role: "supporting-video",
@@ -85,19 +76,6 @@ export async function createDeliveryManifest(options: {
     mediaType: "image/png",
     order: 40,
   });
-  addIfPresent(items, outputDirectory, resolve(outputDirectory, "report", "index.html"), {
-    id: "session-report",
-    role: "report",
-    group: "report",
-    title: "完整赛后报告",
-    description: "包含逐圈表现、驾驶机会、训练建议和数据质量。",
-    mediaType: "text/html",
-    previewPath: existsSync(resolve(outputDirectory, "report", "scorecard-summary.png"))
-      ? "report/scorecard-summary.png"
-      : undefined,
-    order: 50,
-  });
-
   const primaryInsight = selectTrainingCard(analysis.drivingInsights).card?.title;
   const manifest: DeliveryManifestV1 = {
     schemaVersion: DELIVERY_MANIFEST_SCHEMA_VERSION,
