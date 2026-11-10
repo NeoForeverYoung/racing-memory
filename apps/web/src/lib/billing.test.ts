@@ -236,8 +236,8 @@ describe("annualDiscountPercent", () => {
 
 describe("formatPrice", () => {
   it("drops cents for whole amounts and keeps them otherwise", () => {
-    expect(formatPrice(100, "usd")).toBe("$1");
-    expect(formatPrice(1099, "usd")).toBe("$10.99");
+    expect(formatPrice(100, "usd", "en-US")).toBe("$1");
+    expect(formatPrice(1099, "usd", "en-US")).toBe("$10.99");
   });
   it("returns empty string for null (metered) amounts", () => {
     expect(formatPrice(null, "usd")).toBe("");

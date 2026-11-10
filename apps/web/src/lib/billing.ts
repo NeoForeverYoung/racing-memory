@@ -75,11 +75,15 @@ export function priceFor(
 }
 
 /** Format a minor-unit amount as a localized currency string (no trailing .00). */
-export function formatPrice(unitAmount: number | null | undefined, currency: string): string {
+export function formatPrice(
+  unitAmount: number | null | undefined,
+  currency: string,
+  locale?: Intl.LocalesArgument,
+): string {
   if (unitAmount == null) return "";
   const major = unitAmount / 100;
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency.toUpperCase(),
       maximumFractionDigits: Number.isInteger(major) ? 0 : 2,
