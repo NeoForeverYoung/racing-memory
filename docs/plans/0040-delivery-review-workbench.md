@@ -494,6 +494,10 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
      结果页正确显示 `Audi R8 LMS EVO II GT3`，错误测试 Session 已清理。
 - 最终 Windows 包来自 `main` 提交 `da91799361bc`，ZIP SHA-256
   `2343b940fe7e85d5b655854a22e2e2821e9ef2def2085baa30cd6b1ad5f9001d`。
+- 普通用户指南提交 `52bd603994c3` 已在 Windows 11 x64 重新打包验证：
+  解压目录和 ZIP 根目录均包含 7,879-byte UTF-8 `README.md`，构建 smoke assertion
+  通过；ZIP SHA-256 为
+  `52d474271cd6e3d599e2d40ecc9596adc37d65ee26ca2e14d1e427ef0ebcfd29`。
 
 ## 10. 触点
 
