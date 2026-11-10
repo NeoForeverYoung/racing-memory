@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
-import { videoCoverageMs } from "@lapwing/media";
+import { videoCoverageMs, videoSecToSessionMs } from "@lapwing/media";
 import type { GpsSample } from "@/types/racing";
 import type { SessionAnalytics } from "@/lib/sessionAnalytics";
 import { analyzeBundle } from "./report";
@@ -113,7 +113,11 @@ export function nativeLapSpans(samples: GpsSample[]): NativeLapSpan[] {
     const endProgress = field(last, PROGRESS) ?? 0;
     const endMs = next?.t ?? last.t;
     const incidents = Math.max(...group.samples.map((sample) => field(sample, INCIDENTS) ?? 0));
-    const previousLastLap = field(last, LAST_LAP_TIME);
+    // Compare against a mid-lap baseline: `Last` can flicker near the line on
+    // the final samples while lap_dist_pct is still climbing.
+    const beforeFinish = group.samples.filter((sample) => (field(sample, PROGRESS) ?? 0) < 0.9);
+    const previousLastLap = field(beforeFinish.at(-1) ?? first, LAST_LAP_TIME);
+    const lapDurationSec = (endMs - first.t) / 1000;
     // `lap_last_lap_time` often settles after crossing the line.  Retain the
     // publishing sample, rather than only its value, so the exported clip can
     // keep the game HUD onscreen long enough to visibly show `Last`.
@@ -121,10 +125,13 @@ export function nativeLapSpans(samples: GpsSample[]): NativeLapSpan[] {
       ? groups[index + 1].samples
         // Wall-clock bound, rather than a sample-count bound: IBT capture rates
         // vary, and an arbitrary 360-sample cutoff can end before `Last` appears.
-        .filter((sample) => sample.t <= endMs + 10_000)
+        .filter((sample) => sample.t >= endMs && sample.t <= endMs + 10_000)
         .find((sample) => {
           const value = field(sample, LAST_LAP_TIME);
-          return finite(value) && value > 0 && value !== previousLastLap;
+          if (!finite(value) || value <= 0) return false;
+          if (value !== previousLastLap) return true;
+          // Back-to-back laps with the same time still publish `Last` after the line.
+          return Math.abs(value - lapDurationSec) < 0.25;
         })
       : undefined;
     const officialTimeSec = officialSample ? field(officialSample, LAST_LAP_TIME) : undefined;
@@ -213,12 +220,33 @@ function encodeVideo(codec: string): string[] {
   return ["-c:v", codec, "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"];
 }
 
+/** Session time (ms) the video must cover through for a fastest-lap export. */
+export function fastestLapClipEndSessionMs(options: {
+  span: Pick<NativeLapSpan, "startMs" | "endMs" | "officialTimePublishedAtMs">;
+  videoDurationSec: number;
+  postRollSec: number;
+  syncOffsetMs: number;
+  syncRate: number;
+}): number {
+  const { endSec } = fastestAvailableClipWindow({
+    ...options,
+    preRollSec: 0,
+  });
+  return videoSecToSessionMs(endSec, options.syncOffsetMs, options.syncRate);
+}
+
 export function fastestAvailableClipWindow(options: { span: Pick<NativeLapSpan, "startMs" | "endMs" | "officialTimePublishedAtMs">; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
   const startSec = Math.max(0, ((options.span.startMs - options.syncOffsetMs) * options.syncRate) / 1000 - options.preRollSec);
-  // The line itself is not the completion signal displayed by the HUD: wait
-  // until iRacing publishes `Last`, then retain the requested tail after it.
-  const hudSettledAtMs = options.span.officialTimePublishedAtMs ?? options.span.endMs;
-  const endSec = Math.min(options.videoDurationSec, ((hudSettledAtMs - options.syncOffsetMs) * options.syncRate) / 1000 + options.postRollSec);
+  const lineVideoSec = ((options.span.endMs - options.syncOffsetMs) * options.syncRate) / 1000;
+  const settledVideoSec = options.span.officialTimePublishedAtMs != null
+    ? ((options.span.officialTimePublishedAtMs - options.syncOffsetMs) * options.syncRate) / 1000
+    : lineVideoSec;
+  // `Last` can trail the line on video even when telemetry already moved; keep
+  // the configured tail after the line and, when later, after telemetry `Last`.
+  const endSec = Math.min(
+    options.videoDurationSec,
+    Math.max(lineVideoSec + options.postRollSec, settledVideoSec + options.postRollSec),
+  );
   return { startSec, endSec };
 }
 
@@ -268,16 +296,26 @@ export async function renderSessionAssets(options: { bundlePath: string; outputD
   const loaded = loadTelemetry(telemetryPath);
   const spans = nativeLapSpans(loaded.data.samples);
   const coverage = videoCoverageMs(syncOffsetMs, videoDurationSec, syncRate);
-  const available = spans.filter((span) => span.complete && span.startMs >= coverage.startMs && span.endMs <= coverage.endMs && !span.onPitRoad);
-  const lapTiming = (span: NativeLapSpan) => span.officialTimeMs ?? span.durationMs;
-  const fastestAvailable = available.reduce<NativeLapSpan | null>((best, span) => !best || lapTiming(span) < lapTiming(best) ? span : best, null);
-  if (!fastestAvailable) throw new CliError("NO_COMPLETE_LAPS", "The video does not cover a complete, usable native iRacing lap.", 1);
   const sections = options.optSections ?? 10;
   const preRollSec = options.preRollSec ?? 5;
   const postRollSec = options.postRollSec ?? 5;
   if (!Number.isInteger(sections) || sections < 2 || sections > 50) throw new CliError("INVALID_ARGUMENT", "--opt-sections must be an integer from 2 to 50.");
   if (!Number.isFinite(preRollSec) || preRollSec < 0) throw new CliError("INVALID_ARGUMENT", "--pre-roll must be zero or greater.");
   if (!Number.isFinite(postRollSec) || postRollSec < 0) throw new CliError("INVALID_ARGUMENT", "--post-roll must be zero or greater.");
+  const available = spans.filter((span) => {
+    if (!span.complete || span.onPitRoad || span.startMs < coverage.startMs) return false;
+    const clipEndMs = fastestLapClipEndSessionMs({
+      span,
+      videoDurationSec,
+      postRollSec,
+      syncOffsetMs,
+      syncRate,
+    });
+    return clipEndMs <= coverage.endMs;
+  });
+  const lapTiming = (span: NativeLapSpan) => span.officialTimeMs ?? span.durationMs;
+  const fastestAvailable = available.reduce<NativeLapSpan | null>((best, span) => !best || lapTiming(span) < lapTiming(best) ? span : best, null);
+  if (!fastestAvailable) throw new CliError("NO_COMPLETE_LAPS", "The video does not cover a complete, usable native iRacing lap.", 1);
   const chunks = makeOptChunks(loaded.data.samples, available, sections);
   const analysis = await analyzeBundle(absoluteBundle);
   mkdirSync(outputDirectory, { recursive: true });

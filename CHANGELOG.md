@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Fastest-lap exports keep iRacing `Last` on screen.** Session render now anchors the post-finish tail to the actual finish crossing as well as telemetry `Last`, and skips laps the video cannot cover through that tail, so the HUD has time to settle after the line. (Plan 0037.)
+
 ### Added
 - **OBS readiness on Racing Memory Desktop.** Home and Settings now probe OBS install paths and the configured WebSocket endpoint, block capture until OBS is reachable, and document that OBS is not bundled in the Windows portable ZIP. (Plan 0037.)
 - **One evidence-based next-practice card per Session.** The local delivery pipeline now selects the strongest deterministic driving opportunity, saves its baseline, target and supporting evidence with the Session, and presents a single practical next exercise in Desktop instead of overwhelming drivers with a list of charts. (Plan 0038.)
