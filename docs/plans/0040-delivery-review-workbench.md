@@ -454,6 +454,10 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   138.406 秒 Session Best，但它发生在遥测捕获开始前，没有对应采样，不能伪造成
   可画图圈。iRacing 的 `Lap`、0–100 `LapDistPct` 与过线后稳定的正数
   `LapLastLapTime` 现成为 Web/CLI 共用的权威圈界与圈时；没有官方有效值的圈直接省略。
+- 既有文件导入曾在 Home 原地只把按钮改成“正在导入并生成”，用户无法确认是否已进入
+  流水线。点击后现立即切换到独立进度页，复用逐阶段进度组件，完成事件再自动进入
+  Session Result。Parallels GUI 启动命令同时统一为 PowerShell `Start-Process`；
+  禁止用会让宿主终端随 GUI 生命周期一直挂起的 `cmd start`。
 
 ## 10. 触点
 

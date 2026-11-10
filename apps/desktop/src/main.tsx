@@ -29,7 +29,7 @@ import {
 } from "./sessionModel";
 import "./styles.css";
 
-type View = "home" | "library" | "session" | "settings";
+type View = "home" | "library" | "session" | "settings" | "progress";
 type AppEvent = { kind: "capture" | "delivery"; level: "info" | "error"; message: string; at: string; sessionId?: string };
 type PathPickerKind = "telemetryFile" | "videoFile" | "directory";
 
@@ -331,6 +331,8 @@ function App() {
   const importAndGenerate = async () => {
     if (!importTelemetryPath.trim()) return;
     setBusy("import");
+    setDeliveryProgress({});
+    setView("progress");
     setMessage(null);
     try {
       await invoke("import_and_generate", {
@@ -343,6 +345,7 @@ function App() {
       });
     } catch (error) {
       setBusy(null);
+      setView("home");
       setMessage(String(error));
     }
   };
@@ -458,6 +461,7 @@ function App() {
           onSession={chooseSession}
         />}
         {view === "library" && <Library sessions={state.sessions} selectedId={selected?.id ?? null} busy={busy === "rebuild"} onSelect={chooseSession} onRebuild={rebuildLibrary} />}
+        {view === "progress" && <ImportProgress progress={deliveryProgress} />}
         {view === "session" && <SessionResult
           session={selected}
           busy={busy === "delivery"}
@@ -565,6 +569,28 @@ function Library({ sessions, selectedId, busy, onSelect, onRebuild }: { sessions
   </>;
 }
 
+function DeliveryProgressPanel({ progress }: { progress: DeliveryProgress }) {
+  const overallPercent = deliveryOverallPercent(progress);
+  return <section className="delivery-progress" aria-live="polite">
+    <div className="progress-summary"><div><span>总进度</span><strong>{overallPercent}%</strong></div><progress max="100" value={overallPercent} /></div>
+    <div className="progress-steps">{DELIVERY_STEPS.map(({ id, label }) => {
+      const item = progress[id];
+      const percent = item?.percent ?? 0;
+      const status = item?.status === "failed" ? "失败" : item?.status === "completed" || item?.status === "skipped" ? "完成" : item?.status === "started" ? "处理中" : "等待";
+      return <div className={`progress-step ${item?.status ?? "pending"}`} key={id}><div><strong>{label}</strong><span>{status}</span></div><progress max="100" value={percent} /><b>{percent}%</b>{item?.message && <small>{item.message}</small>}</div>;
+    })}</div>
+  </section>;
+}
+
+function ImportProgress({ progress }: { progress: DeliveryProgress }) {
+  return <>
+    <section className="hero compact">
+      <div><p className="eyebrow">正在创建 Session</p><h1>导入与生成进度</h1><p>正在读取 IBT、分析圈速并生成所选交付物。完成后会自动进入本场结果页。</p></div>
+    </section>
+    <DeliveryProgressPanel progress={progress} />
+  </>;
+}
+
 function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLowConfidence, onGenerate, onOpenWebAnalysis, onOpenAsset, onBack }: {
   session: LocalSessionRecord | null;
   busy: boolean;
@@ -578,7 +604,6 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
 }) {
   if (!session) return <EmptyState title="请选择一个 Session" detail="从历史 Session 中选择一场比赛后，可查看状态并生成本地交付物。" />;
   const needsReview = session.syncRequiresReview && !allowLowConfidence;
-  const overallPercent = deliveryOverallPercent(progress);
   const showProgress = busy || Object.keys(progress).length > 0;
   const visibleAssets = visibleSessionAssets(session.assets);
   const videoAssets = visibleAssets.filter((asset) => asset.group === "video" || asset.path.toLowerCase().endsWith(".mp4"));
@@ -598,15 +623,7 @@ function SessionResult({ session, busy, progress, allowLowConfidence, setAllowLo
     {session.deliveryError && <div className="notice error"><span>{session.deliveryError}</span></div>}
     {session.trainingCard && <section className="training-card"><div><p className="eyebrow">NEXT PRACTICE</p><h2>下次练什么：{session.trainingCard.title}</h2><p>{session.trainingCard.detail}</p></div><div className="training-metrics"><span>当前损失 <strong>{session.trainingCard.baselineTimeLossMs} ms</strong></span><span>下次目标 <strong>≤ {session.trainingCard.targetTimeLossMs} ms</strong></span><span>证据置信度 <strong>{session.trainingCard.confidence}</strong></span></div><div className="training-copy"><strong>练习方式</strong><p>{session.trainingCard.exercise}</p><strong>完成标准</strong><p>{session.trainingCard.completionCriteria}</p></div></section>}
     {session.syncRequiresReview && <label className="review"><input type="checkbox" checked={allowLowConfidence} onChange={(event) => setAllowLowConfidence(event.target.checked)} />我已检查同步，允许低置信度时间轴继续生成。</label>}
-    {showProgress && <section className="delivery-progress" aria-live="polite">
-      <div className="progress-summary"><div><span>总进度</span><strong>{overallPercent}%</strong></div><progress max="100" value={overallPercent} /></div>
-      <div className="progress-steps">{DELIVERY_STEPS.map(({ id, label }) => {
-        const item = progress[id];
-        const percent = item?.percent ?? 0;
-        const status = item?.status === "failed" ? "失败" : item?.status === "completed" || item?.status === "skipped" ? "完成" : item?.status === "started" ? "处理中" : "等待";
-        return <div className={`progress-step ${item?.status ?? "pending"}`} key={id}><div><strong>{label}</strong><span>{status}</span></div><progress max="100" value={percent} /><b>{percent}%</b>{item?.message && <small>{item.message}</small>}</div>;
-      })}</div>
-    </section>}
+    {showProgress && <DeliveryProgressPanel progress={progress} />}
     <section className="delivery-card"><div><h2>生成赛后交付物</h2><p>成绩单模式只需要 IBT；完整模式会额外生成最快圈、OPT 和 Racing Memory Reel。所有文件只保存在本机。</p></div><div className="delivery-actions"><button className="secondary" type="button" disabled={busy} onClick={() => onGenerate("scorecard")}>{busy ? "正在生成…" : "生成成绩单与报告"}</button><button className="primary" type="button" disabled={busy || needsReview || !session.videoAvailable} onClick={() => onGenerate("full")}>生成完整视频交付</button></div></section>
     {!session.videoAvailable && <div className="notice"><span>原始录像目前不可用，因此不能生成视频交付物；已归档的遥测和本地 Session 信息仍可保留。</span></div>}
     <section className="section-head"><div><h2>赛后复盘</h2><p>先看关键结论，再按需要打开视频或完整报告；诊断文件不在这里展示。</p></div><button className="secondary" type="button" onClick={() => onOpenAsset(`${session.sessionDirectory}\\delivery`)}>高级：打开交付目录</button></section>

@@ -23,6 +23,9 @@ changes. For cross-machine work, also read
    artifacts only.
 8. Record branch, commit/dirty state, tool versions, input hashes, package
    checksum, and validation results in the active numbered plan.
+9. Launch Windows GUI apps from macOS with `prlctl exec --current-user
+   powershell.exe -Command "Start-Process ..."`. Do not use `cmd start`:
+   Parallels may keep that console attached for the lifetime of the app.
 
 Before handoff, run:
 

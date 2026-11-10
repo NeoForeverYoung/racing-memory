@@ -239,6 +239,18 @@ This matters because scorecard rendering launches headless Microsoft Edge.
 Git may reject repository ownership, and the result does not represent the
 Desktop user's environment.
 
+Launch a GUI executable through detached PowerShell so the host terminal
+returns immediately:
+
+```bash
+prlctl exec "Windows 11" --current-user powershell.exe -NoProfile -Command \
+  "Start-Process -FilePath 'C:\src\racing-memory\dist\RacingMemory-win11-x64\RacingMemory.exe'"
+```
+
+Do not use `prlctl exec ... cmd.exe /c "start ..."` for a long-lived GUI app.
+Parallels can keep that guest console attached until the application exits,
+leaving the agent terminal permanently busy even though the window opened.
+
 Large IBT/MP4 inputs may remain on a read-only shared folder, but generate
 reports and videos on `C:`. Copy only final evidence or release archives back to
 the host.
