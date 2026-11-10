@@ -386,6 +386,8 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 3. 在 Windows x64 包中用指定真实 IBT/视频执行一次 `delivery generate --preset full`。
 4. 验证 Desktop 摘要、唯一成绩单、HTML、视频播放和 Web 地图/圈表/图表。
 5. 记录包版本、git hash、输入 hash、输出目录和验收结果，避免测试旧包。
+6. 将面向普通用户的中文安装、首次设置、IBT/视频导入、iRacing/OBS 自动录制、
+   故障排查、更新与卸载指南作为根目录 `README.md` 打入每个便携 ZIP，并在构建时断言。
 
 ## 8. 易用性清单
 

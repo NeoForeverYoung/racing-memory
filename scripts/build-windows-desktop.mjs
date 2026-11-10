@@ -55,6 +55,7 @@ copyFileSync(ffmpeg, resolve(portable, "ffmpeg.exe"));
 copyFileSync(ffprobe, resolve(portable, "ffprobe.exe"));
 copyFileSync(resolve(publicAssets, "tracks.json"), resolve(portable, "tracks.json"));
 copyFileSync(resolve(publicAssets, "drawings.json"), resolve(portable, "drawings.json"));
+copyFileSync(resolve(root, "release/README.md"), resolve(portable, "README.md"));
 cpSync(webFull, resolve(portable, "web-analysis"), { recursive: true });
 
 const help = spawnSync(sidecar, ["--help"], { cwd: portable, encoding: "utf8" });
@@ -71,6 +72,9 @@ function containsMarker(directory, marker) {
 }
 if (!existsSync(resolve(portable, "web-analysis/index.html")) || !containsMarker(resolve(portable, "web-analysis"), "desktopSession")) {
   throw new Error("Packaged LapWing Web does not include the Desktop Session handoff.");
+}
+if (!readFileSync(resolve(portable, "README.md"), "utf8").includes("Racing Memory Windows 用户指南")) {
+  throw new Error("Packaged user README is missing or invalid.");
 }
 const git = spawnSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: root, encoding: "utf8" });
 const gitStatus = spawnSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: root, encoding: "utf8" });
