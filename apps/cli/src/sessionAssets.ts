@@ -235,6 +235,41 @@ export function fastestLapClipEndSessionMs(options: {
   return videoSecToSessionMs(endSec, options.syncOffsetMs, options.syncRate);
 }
 
+/** True when the finish line and post-roll tail both fit inside the synced video window. */
+export function isSpanAvailableForVideoClip(
+  span: NativeLapSpan,
+  options: {
+    videoDurationSec: number;
+    preRollSec: number;
+    postRollSec: number;
+    syncOffsetMs: number;
+    syncRate: number;
+    coverage: ReturnType<typeof videoCoverageMs>;
+  },
+): boolean {
+  if (!span.complete || span.onPitRoad || span.startMs < options.coverage.startMs) return false;
+  if (span.endMs > options.coverage.endMs) return false;
+  const lineVideoSec = ((span.endMs - options.syncOffsetMs) * options.syncRate) / 1000;
+  if (lineVideoSec > options.videoDurationSec) return false;
+  const clip = fastestAvailableClipWindow({
+    span,
+    videoDurationSec: options.videoDurationSec,
+    preRollSec: options.preRollSec,
+    postRollSec: options.postRollSec,
+    syncOffsetMs: options.syncOffsetMs,
+    syncRate: options.syncRate,
+  });
+  if (clip.endSec + 0.02 < lineVideoSec + options.postRollSec) return false;
+  const clipEndMs = fastestLapClipEndSessionMs({
+    span,
+    videoDurationSec: options.videoDurationSec,
+    postRollSec: options.postRollSec,
+    syncOffsetMs: options.syncOffsetMs,
+    syncRate: options.syncRate,
+  });
+  return clipEndMs <= options.coverage.endMs;
+}
+
 export function fastestAvailableClipWindow(options: { span: Pick<NativeLapSpan, "startMs" | "endMs" | "officialTimePublishedAtMs">; videoDurationSec: number; preRollSec: number; postRollSec: number; syncOffsetMs: number; syncRate: number }): { startSec: number; endSec: number } {
   const startSec = Math.max(0, ((options.span.startMs - options.syncOffsetMs) * options.syncRate) / 1000 - options.preRollSec);
   const lineVideoSec = ((options.span.endMs - options.syncOffsetMs) * options.syncRate) / 1000;
@@ -302,17 +337,14 @@ export async function renderSessionAssets(options: { bundlePath: string; outputD
   if (!Number.isInteger(sections) || sections < 2 || sections > 50) throw new CliError("INVALID_ARGUMENT", "--opt-sections must be an integer from 2 to 50.");
   if (!Number.isFinite(preRollSec) || preRollSec < 0) throw new CliError("INVALID_ARGUMENT", "--pre-roll must be zero or greater.");
   if (!Number.isFinite(postRollSec) || postRollSec < 0) throw new CliError("INVALID_ARGUMENT", "--post-roll must be zero or greater.");
-  const available = spans.filter((span) => {
-    if (!span.complete || span.onPitRoad || span.startMs < coverage.startMs) return false;
-    const clipEndMs = fastestLapClipEndSessionMs({
-      span,
-      videoDurationSec,
-      postRollSec,
-      syncOffsetMs,
-      syncRate,
-    });
-    return clipEndMs <= coverage.endMs;
-  });
+  const available = spans.filter((span) => isSpanAvailableForVideoClip(span, {
+    videoDurationSec,
+    preRollSec,
+    postRollSec,
+    syncOffsetMs,
+    syncRate,
+    coverage,
+  }));
   const lapTiming = (span: NativeLapSpan) => span.officialTimeMs ?? span.durationMs;
   const fastestAvailable = available.reduce<NativeLapSpan | null>((best, span) => !best || lapTiming(span) < lapTiming(best) ? span : best, null);
   if (!fastestAvailable) throw new CliError("NO_COMPLETE_LAPS", "The video does not cover a complete, usable native iRacing lap.", 1);

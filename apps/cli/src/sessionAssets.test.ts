@@ -3,7 +3,8 @@ import { createSyntheticIbt } from "@lapwing/game-adapter-iracing/fixture";
 import { parseIracingFile } from "@lapwing/game-adapter-iracing/parser";
 import { normalizeChannels } from "@/lib/channels";
 import type { GpsSample } from "@/types/racing";
-import { fastestAvailableClipWindow, fastestLapClipEndSessionMs, nativeLapSpans } from "./sessionAssets";
+import { fastestAvailableClipWindow, fastestLapClipEndSessionMs, isSpanAvailableForVideoClip, nativeLapSpans } from "./sessionAssets";
+import { videoCoverageMs } from "@lapwing/media";
 
 function sample(t: number, lap: number, progress: number, lastLapTime?: number): GpsSample {
   return {
@@ -79,6 +80,38 @@ describe("nativeLapSpans", () => {
       officialTimeMs: 90_123,
       officialTimePublishedAtMs: 90_000,
     });
+  });
+
+  it("rejects laps whose finish line is beyond video coverage", () => {
+    const postRollSec = 5;
+    const videoDurationSec = 1286.856;
+    const syncOffsetMs = 0;
+    const syncRate = 1;
+    const coverage = videoCoverageMs(syncOffsetMs, videoDurationSec, syncRate);
+  const outside = {
+      lap: 14,
+      startMs: 1_190_683,
+      endMs: 1_329_367,
+      durationMs: 138_683,
+      officialTimeMs: 138_696,
+      officialTimePublishedAtMs: 1_331_217,
+      startProgress: 0,
+      endProgress: 100,
+      incidents: 0,
+      onPitRoad: false,
+      complete: true,
+    };
+    const inside = {
+      ...outside,
+      lap: 11,
+      startMs: 500_000,
+      endMs: 614_383,
+      durationMs: 114_383,
+      officialTimePublishedAtMs: 619_383,
+    };
+    const options = { videoDurationSec, preRollSec: 5, postRollSec, syncOffsetMs, syncRate, coverage };
+    expect(isSpanAvailableForVideoClip(outside, options)).toBe(false);
+    expect(isSpanAvailableForVideoClip(inside, options)).toBe(true);
   });
 
   it("finds complete native laps in the synthetic IBT fixture", () => {
