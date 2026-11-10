@@ -352,7 +352,7 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 
 ### P1：指定文件导入与可重复生成
 
-状态：已实现；Desktop 当前支持直接填写本机路径，原生文件选择器作为后续易用性增强。
+状态：已实现；IBT、录像、数据根目录和 iRacing 遥测目录均提供 Windows 原生文件/目录选择器，同时保留可编辑路径以支持复制粘贴。
 
 1. 实现 `lapwing delivery generate`，复用既有 bundle/job/pipeline。
 2. 实现 Desktop 文件选择器、输入预检、preset 选择和步骤级进度。
@@ -362,7 +362,7 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 
 ### P2：LapWing Web Session handoff
 
-状态：已实现；目标 Windows 包的 loopback/Range 行为仍需真机验收。
+状态：已实现并完成目标 Windows 包的 loopback/Range 真机验收；2026-11-10 点击回归发现 hash 校验在 Tauri 命令线程上分配 1 MiB 栈数组并触发 `0xc00000fd`，现已改为堆缓冲区。
 
 1. Web 增加 `desktopSession` 一次性交接加载器。
 2. Desktop 增加受限 loopback 静态/文件服务与 token 生命周期。
@@ -430,6 +430,10 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 - 浏览器真机验收曾发现 `desktopSession` effect 因不稳定回调反复下载 117 MB IBT；
   修复为稳定 ref 后，最终包只请求一次 telemetry，并自动进入第 5 圈地图/图表页面，
   视频 endpoint 以 HTTP 206 Range 响应。
+- 后续逐按钮回归在 Windows Application Error 中复现“在 LapWing 中深度分析”导致
+  `RacingMemory.exe` 以 `0xc00000fd`（stack overflow）退出；根因是 `sha256_file`
+  在命令线程栈上创建 1 MiB 缓冲区。缓冲区迁移到堆后，要求再次验证进程保持运行、
+  默认浏览器成功打开 loopback URL、IBT 只请求一次，并逐项点击结果页与路径选择器。
 
 ## 10. 触点
 

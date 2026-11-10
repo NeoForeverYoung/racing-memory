@@ -51,17 +51,20 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .stage-recording { border-color: #3c6b52; }
 .stage-connected { border-color: #3c5470; }
 .capture-actions { display: grid; min-width: 270px; gap: 10px; }
-.capture-actions label, .field { display: grid; gap: 6px; color: #cdd1da; font-size: 12px; font-weight: 650; }
-.capture-actions input, .field input { width: 100%; padding: 10px 11px; border: 1px solid #4a4e59; border-radius: 7px; outline: none; color: #f5f6fa; background: #17191f; }
-.capture-actions input:focus, .field input:focus { border-color: #e34d5e; box-shadow: 0 0 0 3px #e34d5e2e; }
+.capture-actions label, .field, .path-field { display: grid; gap: 6px; color: #cdd1da; font-size: 12px; font-weight: 650; }
+.capture-actions input, .field input, .path-field input { width: 100%; padding: 10px 11px; border: 1px solid #4a4e59; border-radius: 7px; outline: none; color: #f5f6fa; background: #17191f; }
+.capture-actions input:focus, .field input:focus, .path-field input:focus { border-color: #e34d5e; box-shadow: 0 0 0 3px #e34d5e2e; }
+.path-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.path-input-row .secondary { min-width: 82px; padding: 8px 12px; }
+.path-field small { color: #9299a5; font-size: 11px; font-weight: 400; line-height: 1.45; }
 .readiness { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0 28px; }
 .import-card { align-items: start; margin-bottom: 28px; border-color: #383d49; background: #191c23; }
 .import-copy { max-width: 390px; }
 .import-copy h2 { font-size: 19px; }
 .import-copy > p:not(.eyebrow) { margin: 8px 0 0; color: #9ea5b1; font-size: 12px; line-height: 1.55; }
 .import-form { display: grid; width: min(560px, 100%); gap: 10px; }
-.import-form label { display: grid; gap: 6px; color: #cdd1da; font-size: 11px; font-weight: 650; }
-.import-form input { width: 100%; padding: 9px 10px; border: 1px solid #444954; border-radius: 7px; color: #f5f6fa; background: #111319; }
+.import-form .path-field { font-size: 11px; }
+.import-form .path-field input { padding: 9px 10px; border-color: #444954; background: #111319; }
 .preset-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .preset-buttons button { padding: 8px 10px; border: 1px solid #414651; border-radius: 7px; color: #b7bdc7; background: #1d2028; font-size: 11px; }
 .preset-buttons button.selected { border-color: #d84b5b; color: #fff; background: #3b242a; }

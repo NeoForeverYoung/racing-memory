@@ -31,6 +31,7 @@ import "./styles.css";
 
 type View = "home" | "library" | "session" | "settings";
 type AppEvent = { kind: "capture" | "delivery"; level: "info" | "error"; message: string; at: string; sessionId?: string };
+type PathPickerKind = "telemetryFile" | "videoFile" | "directory";
 
 const EMPTY_STATE: DesktopState = {
   settings: { dataRoot: "", telemetryDirectory: "", obsUrl: "" },
@@ -392,6 +393,23 @@ function App() {
     }
   };
 
+  const pickLocalPath = async (
+    kind: PathPickerKind,
+    currentPath: string,
+    onSelect: (path: string) => void,
+  ) => {
+    setMessage(null);
+    try {
+      const path = await invoke<string | null>("pick_local_path", {
+        kind,
+        currentPath: currentPath.trim() || null,
+      });
+      if (path) onSelect(path);
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
   const capturing = busy === "capture" || captureActive;
   const canCapture = captureReady(state, obsReadiness) && !capturing;
   const presentation = captureStage({
@@ -428,8 +446,10 @@ function App() {
           onCapture={startCapture}
           importTelemetryPath={importTelemetryPath}
           setImportTelemetryPath={setImportTelemetryPath}
+          pickImportTelemetryPath={() => void pickLocalPath("telemetryFile", importTelemetryPath, setImportTelemetryPath)}
           importVideoPath={importVideoPath}
           setImportVideoPath={setImportVideoPath}
+          pickImportVideoPath={() => void pickLocalPath("videoFile", importVideoPath, setImportVideoPath)}
           importPreset={importPreset}
           setImportPreset={setImportPreset}
           importing={busy === "import"}
@@ -449,7 +469,14 @@ function App() {
           onOpenAsset={openAsset}
           onBack={() => setView("library")}
         />}
-        {view === "settings" && <Settings settings={state.settings} buildInfo={state.buildInfo} obsReadiness={obsReadiness} busy={busy === "settings"} onSave={saveSettings} />}
+        {view === "settings" && <Settings
+          settings={state.settings}
+          buildInfo={state.buildInfo}
+          obsReadiness={obsReadiness}
+          busy={busy === "settings"}
+          onPickDirectory={(currentPath, onSelect) => void pickLocalPath("directory", currentPath, onSelect)}
+          onSave={saveSettings}
+        />}
         <Activity events={events} />
       </section>
     </div>
@@ -460,7 +487,7 @@ function NavButton({ active, label, icon, count, onClick }: { active: boolean; l
   return <button className={active ? "nav active" : "nav"} type="button" onClick={onClick}><span>{icon}</span>{label}{count != null && <b>{count}</b>}</button>;
 }
 
-function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, importTelemetryPath, setImportTelemetryPath, importVideoPath, setImportVideoPath, importPreset, setImportPreset, importing, onImport, onSettings, onSession }: {
+function Home({ state, obsReadiness, password, setPassword, canCapture, capturing, presentation, recordingStats, onResetCapture, onCapture, importTelemetryPath, setImportTelemetryPath, pickImportTelemetryPath, importVideoPath, setImportVideoPath, pickImportVideoPath, importPreset, setImportPreset, importing, onImport, onSettings, onSession }: {
   state: DesktopState;
   obsReadiness: ObsReadiness | null;
   password: string;
@@ -473,8 +500,10 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
   onCapture: () => void;
   importTelemetryPath: string;
   setImportTelemetryPath: (value: string) => void;
+  pickImportTelemetryPath: () => void;
   importVideoPath: string;
   setImportVideoPath: (value: string) => void;
+  pickImportVideoPath: () => void;
   importPreset: "scorecard" | "full";
   setImportPreset: (value: "scorecard" | "full") => void;
   importing: boolean;
@@ -511,8 +540,8 @@ function Home({ state, obsReadiness, password, setPassword, canCapture, capturin
     <section className="import-card">
       <div className="import-copy"><p className="eyebrow">已有文件</p><h2>从 IBT 和录像重新生成</h2><p>不需要启动 iRacing 或 OBS。IBT 必填；录像可选。成绩单模式只分析遥测，完整模式会额外生成视频交付物。</p></div>
       <div className="import-form">
-        <label>IBT 文件路径<input value={importTelemetryPath} onChange={(event) => setImportTelemetryPath(event.target.value)} placeholder="C:\Users\...\Documents\iRacing\telemetry\race.ibt" /></label>
-        <label>视频文件路径（可选）<input value={importVideoPath} onChange={(event) => setImportVideoPath(event.target.value)} placeholder="D:\Recordings\race.mp4" /></label>
+        <PathField label="IBT 文件路径" value={importTelemetryPath} onChange={setImportTelemetryPath} onBrowse={pickImportTelemetryPath} placeholder="C:\Users\...\Documents\iRacing\telemetry\race.ibt" />
+        <PathField label="视频文件路径（可选）" value={importVideoPath} onChange={setImportVideoPath} onBrowse={pickImportVideoPath} placeholder="D:\Recordings\race.mp4" />
         <div className="preset-buttons" role="group" aria-label="生成档位">
           <button className={importPreset === "scorecard" ? "selected" : ""} type="button" onClick={() => setImportPreset("scorecard")}>成绩单与报告</button>
           <button className={importPreset === "full" ? "selected" : ""} type="button" disabled={!importVideoPath.trim()} onClick={() => setImportPreset("full")}>完整视频交付</button>
@@ -624,7 +653,14 @@ function AssetCard({ asset, onOpen }: { asset: LocalSessionRecord["assets"][numb
   </button>;
 }
 
-function Settings({ settings, buildInfo, obsReadiness, busy, onSave }: { settings: DesktopSettings; buildInfo?: DesktopState["buildInfo"]; obsReadiness: ObsReadiness | null; busy: boolean; onSave: (settings: DesktopSettings) => void }) {
+function Settings({ settings, buildInfo, obsReadiness, busy, onPickDirectory, onSave }: {
+  settings: DesktopSettings;
+  buildInfo?: DesktopState["buildInfo"];
+  obsReadiness: ObsReadiness | null;
+  busy: boolean;
+  onPickDirectory: (currentPath: string, onSelect: (path: string) => void) => void;
+  onSave: (settings: DesktopSettings) => void;
+}) {
   const [draft, setDraft] = useState(settings);
   useEffect(() => setDraft(settings), [settings]);
   const obs = obsReadinessSummary(obsReadiness, draft);
@@ -636,8 +672,8 @@ function Settings({ settings, buildInfo, obsReadiness, busy, onSave }: { setting
       <p className="obs-inline-status"><span className={obs.good ? "status good" : "status bad"}>{obs.value}</span>{obs.detail}</p>
     </aside>
     <form className="settings-form" onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
-      <Field label="Racing Memory 数据目录" value={draft.dataRoot} onChange={(dataRoot) => setDraft((current) => ({ ...current, dataRoot }))} help="Session、IBT 归档、成绩单和报告将保存在这里。原始 OBS 录像不会复制进来。" />
-      <Field label="iRacing IBT 目录" value={draft.telemetryDirectory} onChange={(telemetryDirectory) => setDraft((current) => ({ ...current, telemetryDirectory }))} help="比赛结束后，Desktop 会在此等待 iRacing 完成遥测写入。" />
+      <PathField label="Racing Memory 数据目录" value={draft.dataRoot} onChange={(dataRoot) => setDraft((current) => ({ ...current, dataRoot }))} onBrowse={() => onPickDirectory(draft.dataRoot, (dataRoot) => setDraft((current) => ({ ...current, dataRoot })))} help="Session、IBT 归档、成绩单和报告将保存在这里。原始 OBS 录像不会复制进来。" />
+      <PathField label="iRacing IBT 目录" value={draft.telemetryDirectory} onChange={(telemetryDirectory) => setDraft((current) => ({ ...current, telemetryDirectory }))} onBrowse={() => onPickDirectory(draft.telemetryDirectory, (telemetryDirectory) => setDraft((current) => ({ ...current, telemetryDirectory })))} help="比赛结束后，Desktop 会在此等待 iRacing 完成遥测写入。" />
       <Field label="OBS WebSocket 地址" value={draft.obsUrl} onChange={(obsUrl) => setDraft((current) => ({ ...current, obsUrl }))} help="通常为 ws://127.0.0.1:4455；保存后首页会自动检测 OBS 是否在线。" />
       <button className="primary" disabled={busy} type="submit">{busy ? "正在保存…" : "保存本地设置"}</button>
     </form>
@@ -649,6 +685,24 @@ function Settings({ settings, buildInfo, obsReadiness, busy, onSave }: { setting
 
 function Field({ label, value, help, onChange }: { label: string; value: string; help: string; onChange: (value: string) => void }) {
   return <label className="field"><span>{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} /><small>{help}</small></label>;
+}
+
+function PathField({ label, value, help, placeholder, onChange, onBrowse }: {
+  label: string;
+  value: string;
+  help?: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+  onBrowse: () => void;
+}) {
+  return <div className="path-field">
+    <span>{label}</span>
+    <div className="path-input-row">
+      <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <button className="secondary" type="button" onClick={onBrowse}>浏览…</button>
+    </div>
+    {help && <small>{help}</small>}
+  </div>;
 }
 
 function SessionCard({ session, onClick }: { session: LocalSessionRecord; onClick: () => void }) {

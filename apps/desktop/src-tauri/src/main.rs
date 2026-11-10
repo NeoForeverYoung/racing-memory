@@ -855,7 +855,9 @@ fn sha256_file(path: &Path) -> Result<String, String> {
     let mut file = fs::File::open(path)
         .map_err(|error| format!("Cannot read Session telemetry: {error}"))?;
     let mut hash = Sha256::new();
-    let mut buffer = [0u8; 1024 * 1024];
+    // Tauri command threads have a relatively small stack on Windows. A 1 MiB
+    // stack array overflowed it before the browser bridge could start.
+    let mut buffer = vec![0u8; 1024 * 1024];
     loop {
         let count = file.read(&mut buffer)
             .map_err(|error| format!("Cannot verify Session telemetry: {error}"))?;
@@ -865,6 +867,32 @@ fn sha256_file(path: &Path) -> Result<String, String> {
         hash.update(&buffer[..count]);
     }
     Ok(format!("sha256:{:x}", hash.finalize()))
+}
+
+#[tauri::command]
+fn pick_local_path(kind: String, current_path: Option<String>) -> Result<Option<String>, String> {
+    let mut dialog = rfd::FileDialog::new();
+    if let Some(path) = current_path
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
+    {
+        dialog = dialog.set_directory(if path.is_dir() {
+            path
+        } else {
+            path.parent().map(Path::to_path_buf).unwrap_or(path)
+        });
+    }
+    let selected = match kind.as_str() {
+        "telemetryFile" => dialog
+            .add_filter("iRacing telemetry", &["ibt"])
+            .pick_file(),
+        "videoFile" => dialog
+            .add_filter("Video recordings", &["mp4", "mov", "mkv", "avi", "webm"])
+            .pick_file(),
+        "directory" => dialog.pick_folder(),
+        _ => return Err("Unsupported file picker type.".to_owned()),
+    };
+    Ok(selected.map(|path| path.to_string_lossy().into_owned()))
 }
 
 const ANALYSIS_CSP: &str = "default-src 'self'; script-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:";
@@ -1122,6 +1150,7 @@ fn main() {
             import_and_generate,
             get_delivery_progress,
             read_image_preview,
+            pick_local_path,
             open_local_path,
             open_web_analysis,
             run_delivery,

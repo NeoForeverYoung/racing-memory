@@ -27,7 +27,9 @@ user workflow. Bundle JSON is an internal contract and should not be needed for
 normal capture or delivery. OBS passwords are supplied for the current capture
 only and are not persisted in Desktop settings.
 
-Home also accepts an explicit existing `.ibt` path and optional recording path.
+Home also accepts an existing `.ibt` and optional recording through native
+Windows file dialogs; paths remain editable for copy/paste workflows. Settings
+uses the same native folder picker for the data and iRacing telemetry folders.
 “成绩单与报告” works without OBS or video; “完整视频交付” requires the recording.
 The same repeatable path is available to scripts:
 
