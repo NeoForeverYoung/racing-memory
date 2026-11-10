@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-11-10
+
 ### Fixed
 - **Existing-file imports now open a dedicated, recoverable generation progress page immediately.** The Desktop no longer leaves users on Home with only a busy button while IBT analysis and report/video generation run. Progress and completion are polled from the Session directory, so a missed Tauri event cannot leave every stage at 0% or prevent the result page from opening. Parallels validation guidance also uses detached PowerShell GUI launches, preventing the host terminal from staying attached to Racing Memory until the app exits. (Plan 0040.)
 - **Full-video imports can explicitly continue when automatic synchronization needs review.** The Home import form now exposes the same low-confidence timeline acknowledgement as Session Result; previously a valid IBT/video pair with non-overlapping file timestamps could only fail because the required acknowledgement was inaccessible before Session creation. (Plan 0040.)
