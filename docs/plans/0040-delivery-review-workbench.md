@@ -435,8 +435,11 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   在命令线程栈上创建 1 MiB 缓冲区。缓冲区迁移到堆后进程保持运行；同轮验收又发现
   Edge 首次导航偶发只停留在 Landing，刷新才消费 query token。loopback 现将 token
   同时注入 HTML meta，Web 以 query/meta 双路径启动，并用一次性 `desktopReady=1`
-  bootstrap redirect 强制 Edge 完成首次真实导航；要求再次验证首次点击直接进入 Session、
-  IBT 只请求一次，并逐项点击结果页与路径选择器。
+  bootstrap redirect 强制 Edge 完成首次真实导航。真机复测证明 URL 与 token 均正确，
+  但也暴露异步 handoff 在首次页面生命周期清理时会被取消，而提前写入的 loaded ref
+  会阻止同一 token 重试；loaded 标记现延后到解析和载入全部成功之后，生命周期重启可
+  安全重试。要求再次验证首次点击直接进入 Session、IBT 只请求一次，并逐项点击结果页
+  与路径选择器。
 
 ## 10. 触点
 

@@ -411,7 +411,6 @@ export default function Index() {
       document.querySelector<HTMLMetaElement>('meta[name="lapwing-desktop-session"]')?.content,
     );
     if (!token || desktopSessionLoaded.current === token) return;
-    desktopSessionLoaded.current = token;
     let cancelled = false;
     void (async () => {
       try {
@@ -427,9 +426,11 @@ export default function Index() {
         await desktopHandleDataLoaded.current(parsed, descriptor.telemetryFileName, {
           autoAcceptWaypoint: descriptor.autoUseWaypoint === true,
         });
+        if (cancelled) return;
+        desktopSessionLoaded.current = token;
         setTopPanelView("raceline");
       } catch (error) {
-        desktopSessionLoaded.current = null;
+        if (cancelled) return;
         toast.error(error instanceof Error ? error.message : "无法打开 Desktop Session");
       }
     })();
