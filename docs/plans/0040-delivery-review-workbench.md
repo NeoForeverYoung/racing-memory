@@ -441,8 +441,14 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   安全重试。Edge CDP 网络日志随后给出更直接的失败证据：Session descriptor 返回 200，
   但 117 MB telemetry 响应以 `ERR_CONTENT_LENGTH_MISMATCH` 中断。loopback listener
   为轮询 accept 使用 non-blocking；Windows 上接受的连接现显式恢复 blocking，避免大
-  IBT/视频在首次 `WouldBlock` 时截断。要求再次验证首次点击直接进入 Session、IBT 只
-  请求一次，并逐项点击结果页与路径选择器。
+  IBT/视频在首次 `WouldBlock` 时截断。
+- 最终包 `265c13bed584`（ZIP SHA-256
+  `ae20b1217be68340bf144763e1502c61a7cc66d3b670ef95016b7efb84f78515`）
+  已在 Parallels Windows 11 x64 从全新 Desktop 进程按“历史 Session → Spa Session
+  → 在 LapWing 中深度分析”逐项真实点击；无需刷新即进入第 5 圈分析图表，Desktop
+  进程保持运行。原生 IBT、录像、数据目录和 telemetry 目录选择器均已分别打开验证；
+  最快圈视频、HTML 报告和 PNG 原图入口也已点击，HTML 在 Edge、PNG 在 Windows
+  Photos 中正常打开。
 
 ## 10. 触点
 
