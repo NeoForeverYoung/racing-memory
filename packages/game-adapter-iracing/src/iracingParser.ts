@@ -184,16 +184,15 @@ function yamlScalar(source: string, key: string): string | undefined {
   return value && value !== '{}' && value !== 'null' ? value : undefined;
 }
 
-/** Resolve the driver's entry from the iRacing Drivers list rather than taking
- * the first `UserName` in the YAML (which belongs to another car in a session). */
-function driverNameForDriverCar(source: string): string | undefined {
+/** Resolve the player's entry from the iRacing Drivers list rather than taking
+ * the first driver/car fields, which may belong to the pace car or another car. */
+function driverEntryForDriverCar(source: string): string | undefined {
   const driverCarIdx = source.match(/^\s*DriverCarIdx:\s*(\d+)\s*$/m)?.[1];
   if (!driverCarIdx) return undefined;
-  const entry = new RegExp(
+  return new RegExp(
     `^[ \\t]*- CarIdx: ${driverCarIdx}[ \\t]*$([\\s\\S]*?)(?=^[ \\t]*- CarIdx:|^[^ \\t]|(?![\\s\\S]))`,
     "m",
   ).exec(source)?.[1];
-  return entry ? yamlScalar(entry, "UserName") : undefined;
 }
 
 /**
@@ -210,11 +209,14 @@ export function readIracingSessionMetadata(buffer: ArrayBuffer): IracingSessionM
   const yaml = readCString(bytes, offset, Math.min(length, buffer.byteLength - offset));
   const track = yamlScalar(yaml, 'TrackDisplayName') ?? yamlScalar(yaml, 'TrackName');
   const config = yamlScalar(yaml, 'TrackConfigName');
+  const driverEntry = driverEntryForDriverCar(yaml);
   return {
     track,
     course: config && config !== track ? config : undefined,
-    vehicle: yamlScalar(yaml, 'CarScreenName') ?? yamlScalar(yaml, 'CarPath'),
-    driver: driverNameForDriverCar(yaml) ?? yamlScalar(yaml, 'UserName'),
+    vehicle: (driverEntry && (yamlScalar(driverEntry, 'CarScreenName') ?? yamlScalar(driverEntry, 'CarPath')))
+      ?? yamlScalar(yaml, 'CarScreenName')
+      ?? yamlScalar(yaml, 'CarPath'),
+    driver: (driverEntry && yamlScalar(driverEntry, 'UserName')) ?? yamlScalar(yaml, 'UserName'),
     sessionType: yamlScalar(yaml, 'SessionType'),
   };
 }

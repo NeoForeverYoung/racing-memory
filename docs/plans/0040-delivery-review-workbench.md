@@ -364,6 +364,8 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 5. 与 Plan 0039 的 `import_session` 合并实现，避免两个入口和两套契约。
 6. 完整视频导入在首页提供低置信度时间轴确认；否则文件时间无重叠但可人工复核的
    IBT/录像组合会被 pipeline 正确拒绝，却没有任何可在创建 Session 前解除阻塞的 UI。
+7. iRacing race IBT 的车辆名和驾驶员名都从 `DriverCarIdx` 对应的 Drivers 条目读取；
+   不能用 YAML 中第一个 `CarScreenName`，公开真实比赛样本的首项可能是安全车。
 
 ### P2：LapWing Web Session handoff
 

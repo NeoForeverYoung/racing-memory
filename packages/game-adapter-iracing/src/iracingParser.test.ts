@@ -192,6 +192,38 @@ describe('readIracingSessionMetadata', () => {
       sessionType: 'Race',
     });
   });
+
+  it('uses the player car instead of the first pace-car entry', () => {
+    const buffer = makeIbt({
+      records: 1,
+      yaml: [
+        '---',
+        'WeekendInfo:',
+        ' TrackDisplayName: Circuit de Test',
+        'DriverInfo:',
+        ' DriverCarIdx: 7',
+        ' Drivers:',
+        '  - CarIdx: 0',
+        '    UserName: Pace Car',
+        '    CarScreenName: Safety Car',
+        '  - CarIdx: 7',
+        '    UserName: Test Driver',
+        '    CarScreenName: Audi R8 LMS EVO II GT3',
+        'SessionInfo:',
+        ' SessionType: Race',
+        '...',
+        '',
+      ].join('\n'),
+      vars: [
+        { name: 'Lat', type: T_DOUBLE, value: () => 36.27 },
+        { name: 'Lon', type: T_DOUBLE, value: () => -115.01 },
+      ],
+    });
+    expect(readIracingSessionMetadata(buffer)).toMatchObject({
+      vehicle: 'Audi R8 LMS EVO II GT3',
+      driver: 'Test Driver',
+    });
+  });
 });
 // ─── parseIracingFile ───────────────────────────────────────────────────────
 
