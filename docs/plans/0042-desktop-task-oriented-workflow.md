@@ -1,6 +1,6 @@
 # Plan 0042：Racing Memory Desktop 任务导向工作流
 
-> 状态：实施中  
+> 状态：已实施并验证  
 > 更新时间：2026-11-10  
 > 范围：`apps/desktop/` 的信息架构、导航状态、导入/录制/Session 复盘流程与 Windows 真机验收  
 > 非目标：不修改 IBT 解析、交付 pipeline、LapWing Web 分析或 Session 数据格式
@@ -157,3 +157,19 @@ sequenceDiagram
 6. LapWing、报告、PNG、视频和目录入口按已验证的本机打开契约继续可用。
 
 实施提交必须引用 `plan 0042`。
+
+## 5. 实施记录与验证结果
+
+- 2026-11-10：新增 `desktopNavigation.ts`，将页面与 Session 子页转移收敛为可测试的纯状态机；
+  导入失败明确回到保留输入的导入页，导入完成进入新 Session 概览，交付完成保留在当前
+  Session 的“生成与重试”页。
+- 2026-11-10：Desktop 主导航调整为“工作台 / 新建 Session / 历史 Session / 设置”；
+  自动录制、已有文件导入、交付物和重新生成各自位于独立任务页。活动记录只位于录制工作区。
+- 2026-11-10：自动验证通过：`bun run lint`、`bun run typecheck`、`bun run test:run`
+  （3397 passed、1 skipped）、`bun run build`。
+- 2026-11-10：在 Parallels Windows 11 ARM guest 的 guest-local
+  `C:\src\racing-memory-main-01ebd48` 中，以 x64 Bun 1.4.4 及
+  `x86_64-pc-windows-msvc` 成功运行 `bun run build:desktop:win`。
+  Windows UI Automation 实机点击验证了：工作台 → 新建 Session → 导入已有文件、
+  IBT 原生文件选择器、历史 Session → 概览 → 交付物 → 生成与重试，以及
+  新建 Session → 自动录制。每个终点均检查了对应页的可访问控件及页面标题。
