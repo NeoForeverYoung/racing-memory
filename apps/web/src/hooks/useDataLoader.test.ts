@@ -5,7 +5,7 @@ import {
   chooseAutoDetectPath,
   detectionMetadataPatch,
   dragMetadataPatch,
-  hasNativeCircuitLapSequence,
+  nativeCircuitLaps,
   shouldRestoreDragSession,
 } from "./useDataLoader";
 
@@ -97,23 +97,37 @@ describe("chooseAutoDetectPath (load precedence, plan 0022)", () => {
   });
 });
 
-describe("hasNativeCircuitLapSequence", () => {
-  const native = (lap: number, progress: number) => ({
-    extraFields: { "custom:lap_number": lap, lap_dist_pct: progress },
-  }) as unknown as GpsSample;
-
-  it("recognises multiple complete iRacing-native laps", () => {
-    expect(hasNativeCircuitLapSequence([
-      native(1, 0.01), native(1, 0.99),
-      native(2, 0.01), native(2, 0.99),
-    ])).toBe(true);
+describe("nativeCircuitLaps", () => {
+  const native = (t: number, lap: number, progress: number, last: number): GpsSample => ({
+    t, lat: 0, lon: 0, speedMps: 50, speedMph: 112, speedKph: 180,
+    extraFields: {
+      "custom:lap_number": lap,
+      lap_dist_pct: progress,
+      "custom:lap_last_lap_time": last,
+      race_on_pit_road: 0,
+    },
   });
 
-  it("does not suppress drag detection for partial or single-lap data", () => {
-    expect(hasNativeCircuitLapSequence([
-      native(1, 0.2), native(1, 0.8),
-      native(2, 0.01), native(2, 0.99),
-    ])).toBe(false);
+  it("uses iRacing's official Last value instead of a shorter waypoint time", () => {
+    const result = nativeCircuitLaps([
+      native(0, 4, 0, 140),
+      native(140_000, 4, 100, 140),
+      native(140_100, 5, 0, 140),
+      native(278_500, 5, 100, 140),
+      native(278_600, 6, 0, 138.406),
+      native(417_000, 6, 100, 138.406),
+      native(417_100, 7, 0, 138.5),
+    ]);
+
+    expect(result.find((lap) => lap.lapNumber === 5)?.lapTimeMs).toBeCloseTo(138_406);
+  });
+
+  it("omits a lap when iRacing never publishes a valid official time", () => {
+    expect(nativeCircuitLaps([
+      native(0, 1, 0, -1),
+      native(100_000, 1, 100, -1),
+      native(100_100, 2, 0, -1),
+    ])).toEqual([]);
   });
 });
 

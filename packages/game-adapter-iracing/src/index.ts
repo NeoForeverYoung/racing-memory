@@ -75,4 +75,5 @@ export const iracingAdapter: GameAdapter = {
 };
 
 export * from "./iracingParser";
+export * from "./nativeLapTiming";
 export * from "./windowsIracingSource";

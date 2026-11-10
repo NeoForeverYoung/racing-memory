@@ -93,6 +93,8 @@ describe("nativeLapSpans", () => {
       startMs: 1_190_683,
       endMs: 1_329_367,
       durationMs: 138_683,
+      startIndex: 0,
+      endIndex: 1,
       officialTimeMs: 138_696,
       officialTimePublishedAtMs: 1_331_217,
       startProgress: 0,

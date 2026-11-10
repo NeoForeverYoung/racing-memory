@@ -449,6 +449,10 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
   进程保持运行。原生 IBT、录像、数据目录和 telemetry 目录选择器均已分别打开验证；
   最快圈视频、HTML 报告和 PNG 原图入口也已点击，HTML 在 Edge、PNG 在 Windows
   Photos 中正常打开。
+- 上述验收截图随后暴露圈时口径错误：IBT 原生 `Lap Best Lap Time` 为
+  138.406 秒（第 5 圈），但 Web waypoint fallback 显示了 121.333 秒。iRacing
+  的 `Lap`、0–100 `LapDistPct` 与过线后稳定的正数 `LapLastLapTime` 现成为 Web/CLI
+  共用的权威圈界与圈时；没有官方有效值的圈直接省略，不再用 GPS waypoint 伪造更快圈。
 
 ## 10. 触点
 

@@ -11,6 +11,7 @@
     ".": "./src/index.ts",
     "./fixture": "./src/ibtFixture.ts",
     "./ibt-finalizer": "./src/ibtDirectoryFinalizer.ts",
+    "./native-laps": "./src/nativeLapTiming.ts",
     "./parser": "./src/iracingParser.ts",
     "./windows-source": "./src/windowsIracingSource.ts"
   }

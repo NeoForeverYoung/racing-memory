@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { videoCoverageMs, videoSecToSessionMs } from "@lapwing/media";
+import { nativeLapSpans, type NativeLapSpan } from "@lapwing/game-adapter-iracing/native-laps";
 import type { GpsSample } from "@/types/racing";
 import type { SessionAnalytics } from "@/lib/sessionAnalytics";
 import { analyzeBundle } from "./report";
@@ -12,27 +13,13 @@ import { emitProgress } from "./progress";
 import { readSessionBundle, resolveBundlePath, writeJsonAtomic } from "./jobStore";
 import { rasterizeSvg } from "./svgRasterizer";
 
+export { nativeLapSpans };
+export type { NativeLapSpan };
+
 const LAP = "custom:lap_number";
 const PROGRESS = "lap_dist_pct";
 const INCIDENTS = "race_incidents";
 const PIT = "race_on_pit_road";
-const LAST_LAP_TIME = "custom:lap_last_lap_time";
-
-export interface NativeLapSpan {
-  lap: number;
-  startMs: number;
-  endMs: number;
-  durationMs: number;
-  /** iRacing's own settled result, when it is available after the line. */
-  officialTimeMs: number | null;
-  /** Session timestamp at which iRacing published `Last` for this lap. */
-  officialTimePublishedAtMs: number | null;
-  startProgress: number;
-  endProgress: number;
-  incidents: number;
-  onPitRoad: boolean;
-  complete: boolean;
-}
 
 interface OptChunk {
   section: string;
@@ -93,62 +80,6 @@ function interpolate(samples: GpsSample[], target: number): GpsSample | null {
   // iRacing's final GPS sample usually lands a few thousandths of a percent
   // before 100 after filtering; it is still the lap endpoint for a video cut.
   return target <= lastProgress + 0.02 ? last : null;
-}
-
-/** Split the iRacing-native counter into true lap windows. */
-export function nativeLapSpans(samples: GpsSample[]): NativeLapSpan[] {
-  const groups: Array<{ lap: number; samples: GpsSample[] }> = [];
-  for (const sample of samples) {
-    const lap = field(sample, LAP);
-    if (!finite(lap) || lap < 1) continue;
-    const current = groups.at(-1);
-    if (!current || current.lap !== Math.round(lap)) groups.push({ lap: Math.round(lap), samples: [sample] });
-    else current.samples.push(sample);
-  }
-  return groups.map((group, index) => {
-    const first = group.samples[0];
-    const last = group.samples.at(-1)!;
-    const next = groups[index + 1]?.samples[0];
-    const startProgress = field(first, PROGRESS) ?? 0;
-    const endProgress = field(last, PROGRESS) ?? 0;
-    const endMs = next?.t ?? last.t;
-    const incidents = Math.max(...group.samples.map((sample) => field(sample, INCIDENTS) ?? 0));
-    // Compare against a mid-lap baseline: `Last` can flicker near the line on
-    // the final samples while lap_dist_pct is still climbing.
-    const beforeFinish = group.samples.filter((sample) => (field(sample, PROGRESS) ?? 0) < 0.9);
-    const previousLastLap = field(beforeFinish.at(-1) ?? first, LAST_LAP_TIME);
-    const lapDurationSec = (endMs - first.t) / 1000;
-    // `lap_last_lap_time` often settles after crossing the line.  Retain the
-    // publishing sample, rather than only its value, so the exported clip can
-    // keep the game HUD onscreen long enough to visibly show `Last`.
-    const officialSample = next
-      ? groups[index + 1].samples
-        // Wall-clock bound, rather than a sample-count bound: IBT capture rates
-        // vary, and an arbitrary 360-sample cutoff can end before `Last` appears.
-        .filter((sample) => sample.t >= endMs && sample.t <= endMs + 10_000)
-        .find((sample) => {
-          const value = field(sample, LAST_LAP_TIME);
-          if (!finite(value) || value <= 0) return false;
-          if (value !== previousLastLap) return true;
-          // Back-to-back laps with the same time still publish `Last` after the line.
-          return Math.abs(value - lapDurationSec) < 0.25;
-        })
-      : undefined;
-    const officialTimeSec = officialSample ? field(officialSample, LAST_LAP_TIME) : undefined;
-    return {
-      lap: group.lap,
-      startMs: first.t,
-      endMs,
-      durationMs: endMs - first.t,
-      officialTimeMs: finite(officialTimeSec) ? officialTimeSec * 1000 : null,
-      officialTimePublishedAtMs: officialSample?.t ?? null,
-      startProgress,
-      endProgress,
-      incidents,
-      onPitRoad: group.samples.some((sample) => (field(sample, PIT) ?? 0) !== 0),
-      complete: Boolean(next) && startProgress <= 0.02 && endProgress >= 0.98,
-    };
-  });
 }
 
 function timeText(ms: number | null): string {

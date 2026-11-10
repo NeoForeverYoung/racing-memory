@@ -21,6 +21,7 @@ import {
 import { fastestRankedLap } from "@/lib/lapCalculation";
 import { parseDatalogFile } from "@/lib/datalogParser";
 import { ensureSampleFile, SAMPLE_FILE_NAME } from "@/lib/sampleData";
+import { nativeLapSpans } from "@lapwing/game-adapter-iracing/native-laps";
 import type { useSessionData } from "@/hooks/useSessionData";
 import type { useLapManagement } from "@/hooks/useLapManagement";
 import type { useSessionMetadata } from "@/hooks/useSessionMetadata";
@@ -169,24 +170,30 @@ export function chooseAutoDetectPath<D>(
 }
 
 /**
- * iRacing circuit files carry an authoritative lap counter plus lap progress.
- * A return to the pits can resemble several standing-start drag runs, but a
- * sequence of full native laps is stronger evidence and must keep waypoint
- * circuit timing ahead of the drag fallback.
+ * Convert complete iRacing-native windows into display laps. Only a positive
+ * official `Last` value qualifies: GPS waypoint timing must never invent a
+ * faster lap when the simulator already supplied the authoritative result.
  */
-export function hasNativeCircuitLapSequence(samples: GpsSample[]): boolean {
-  const laps = new Map<number, { min: number; max: number }>();
-  for (const sample of samples) {
-    const lap = sample.extraFields["custom:lap_number"] ?? sample.extraFields.lap_number;
-    const progress = sample.extraFields.lap_dist_pct ?? sample.extraFields["custom:lap_dist_pct"];
-    if (typeof lap !== "number" || !Number.isFinite(lap) || typeof progress !== "number" || !Number.isFinite(progress) || lap < 1) continue;
-    const key = Math.round(lap);
-    const current = laps.get(key) ?? { min: Infinity, max: -Infinity };
-    current.min = Math.min(current.min, progress);
-    current.max = Math.max(current.max, progress);
-    laps.set(key, current);
-  }
-  return [...laps.values()].filter(({ min, max }) => min <= 0.05 && max >= 0.95).length >= 2;
+export function nativeCircuitLaps(samples: GpsSample[]): Lap[] {
+  return nativeLapSpans(samples)
+    .filter((span) => span.complete && !span.onPitRoad && span.officialTimeMs != null && span.officialTimeMs > 0)
+    .map((span) => {
+      const lapSamples = samples.slice(span.startIndex, span.endIndex + 1);
+      const mph = lapSamples.map((sample) => sample.speedMph);
+      const kph = lapSamples.map((sample) => sample.speedKph);
+      return {
+        lapNumber: span.lap,
+        startTime: span.startMs,
+        endTime: span.endMs,
+        lapTimeMs: span.officialTimeMs!,
+        maxSpeedMph: Math.max(...mph),
+        maxSpeedKph: Math.max(...kph),
+        minSpeedMph: Math.min(...mph),
+        minSpeedKph: Math.min(...kph),
+        startIndex: span.startIndex,
+        endIndex: span.endIndex,
+      };
+    });
 }
 
 /**
@@ -315,13 +322,14 @@ export function useDataLoader({
         tracksForRaceMode(tracks, parsedData.dovexMetadata?.raceMode),
       );
       setDetectionResult(detection);
-      const nativeCircuitLaps = hasNativeCircuitLapSequence(parsedData.samples);
+      const authoritativeLaps = nativeCircuitLaps(parsedData.samples);
       const path = chooseAutoDetectPath(
         detection,
-        () => nativeCircuitLaps ? null : detectDragRuns(parsedData.samples),
+        () => authoritativeLaps.length >= 2 ? null : detectDragRuns(parsedData.samples),
       );
 
       if (path.kind === "course" && detection) {
+        const laps = authoritativeLaps.length > 0 ? authoritativeLaps : detection.laps;
         // Auto-detected a real course — apply directly, no prompt needed
         lapMgmt.setSelection({
           trackName: detection.track.name,
@@ -329,8 +337,8 @@ export function useDataLoader({
           course: detection.course,
           direction: detection.direction,
         });
-        lapMgmt.setLaps(detection.laps);
-        lapMgmt.setSelectedLapNumber(pickFastestLapNumber(detection.laps));
+        lapMgmt.setLaps(laps);
+        lapMgmt.setSelectedLapNumber(pickFastestLapNumber(laps));
         // setSelection is the raw setter and does NOT persist — so write the
         // detected tag straight to metadata here, otherwise a confidently
         // auto-detected session would stay "Untagged" until some later manual
@@ -341,7 +349,7 @@ export function useDataLoader({
             detectionMetadataPatch(
               detection.track.name,
               detection.course.name,
-              detection.laps,
+              laps,
               parsedData.startDate,
             ),
           );
@@ -362,14 +370,16 @@ export function useDataLoader({
       }
 
       if (path.kind === "waypoint" && detection) {
-        // Waypoint mode — apply laps and prompt the user to confirm
-        applyCourselessLaps(lapMgmt, detection.laps);
+        // iRacing's native clock is authoritative; waypoint laps are only a
+        // fallback for formats that do not carry official timing.
+        applyCourselessLaps(lapMgmt, authoritativeLaps.length > 0 ? authoritativeLaps : detection.laps);
         setDetectedTrack(null);
         setTrackPromptOpen(options?.autoAcceptWaypoint !== true);
         return;
       }
 
       // No detection — fall back to nearest track and prompt
+      if (authoritativeLaps.length > 0) applyCourselessLaps(lapMgmt, authoritativeLaps);
       const nearest = findNearestTrack(validSample.lat, validSample.lon, tracks);
       setDetectedTrack(nearest as Track | null);
       setTrackPromptOpen(true);
