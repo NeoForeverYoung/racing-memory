@@ -25,6 +25,10 @@ export interface StagedDesktopVideo {
 
 let pendingVideo: StagedDesktopVideo | null = null;
 
+export function desktopSessionToken(search: string, injectedToken?: string | null): string | null {
+  return new URLSearchParams(search).get("desktopSession") || injectedToken || null;
+}
+
 export function stageDesktopVideo(descriptor: DesktopSessionDescriptor): void {
   if (!descriptor.video) return;
   pendingVideo = {

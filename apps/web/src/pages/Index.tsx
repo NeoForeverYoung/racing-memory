@@ -93,7 +93,11 @@ import type { LeaderboardDescriptor } from "@/lib/leaderboardSession";
 import { buildSharedSessionBundle } from "@/lib/shareSession";
 import { beginFileLoading, endFileLoading } from "@/lib/fileLoadingState";
 import { toast } from "sonner";
-import { stageDesktopVideo, type DesktopSessionDescriptor } from "@/lib/desktopSessionHandoff";
+import {
+  desktopSessionToken,
+  stageDesktopVideo,
+  type DesktopSessionDescriptor,
+} from "@/lib/desktopSessionHandoff";
 
 
 type TopPanelView = "raceline" | "laptable" | "graphview" | "coach" | "memory" | "tools" | "setups" | "notes";
@@ -402,7 +406,10 @@ export default function Index() {
   }, [handleDataLoaded]);
 
   useEffect(() => {
-    const token = new URLSearchParams(location.search).get("desktopSession");
+    const token = desktopSessionToken(
+      location.search,
+      document.querySelector<HTMLMetaElement>('meta[name="lapwing-desktop-session"]')?.content,
+    );
     if (!token || desktopSessionLoaded.current === token) return;
     desktopSessionLoaded.current = token;
     let cancelled = false;

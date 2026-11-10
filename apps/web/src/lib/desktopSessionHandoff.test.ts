@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { stageDesktopVideo, takeStagedDesktopVideo } from "./desktopSessionHandoff";
+import {
+  desktopSessionToken,
+  stageDesktopVideo,
+  takeStagedDesktopVideo,
+} from "./desktopSessionHandoff";
 
 describe("desktop session video handoff", () => {
+  it("uses the server-injected token when the first browser navigation loses its query", () => {
+    expect(desktopSessionToken("", "injected-token")).toBe("injected-token");
+    expect(desktopSessionToken("?desktopSession=query-token", "injected-token")).toBe("query-token");
+  });
+
   it("locks a reviewed timeline and consumes it once", () => {
     stageDesktopVideo({
       telemetryUrl: "/telemetry",

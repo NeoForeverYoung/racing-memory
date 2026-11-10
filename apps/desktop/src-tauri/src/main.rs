@@ -918,6 +918,14 @@ fn write_http_status(stream: &mut TcpStream, status: &str, body: &[u8], mime: &s
     stream.write_all(body)
 }
 
+fn inject_desktop_session_meta(html: &str, token: &str) -> String {
+    html.replacen(
+        "</head>",
+        &format!(r#"<meta name="lapwing-desktop-session" content="{token}"></head>"#),
+        1,
+    )
+}
+
 fn parse_range(value: &str, size: u64) -> Option<(u64, u64)> {
     let raw = value.trim().strip_prefix("bytes=")?;
     let (start, end) = raw.split_once('-')?;
@@ -1019,6 +1027,16 @@ fn handle_analysis_request(
     };
     if !path.is_file() {
         return write_http_status(&mut stream, "404 Not Found", b"Web analysis bundle missing", "text/plain; charset=utf-8");
+    }
+    if path == web_root.join("index.html") {
+        let html = fs::read_to_string(path)?;
+        let injected = inject_desktop_session_meta(&html, token);
+        return write_http_status(
+            &mut stream,
+            "200 OK",
+            injected.as_bytes(),
+            "text/html; charset=utf-8",
+        );
     }
     stream_file(&mut stream, &path, None)
 }
@@ -1161,7 +1179,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_range, scan_assets, sha256_file, LocalSessionAsset};
+    use super::{
+        inject_desktop_session_meta, parse_range, scan_assets, sha256_file, LocalSessionAsset,
+    };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1217,6 +1237,15 @@ mod tests {
         assert_eq!(parse_range("bytes=10-19", 100), Some((10, 19)));
         assert_eq!(parse_range("bytes=90-", 100), Some((90, 99)));
         assert_eq!(parse_range("bytes=100-", 100), None);
+    }
+
+    #[test]
+    fn injects_the_desktop_session_token_into_the_analysis_shell() {
+        let html = inject_desktop_session_meta(
+            "<html><head><title>LapWing</title></head><body></body></html>",
+            "abc123",
+        );
+        assert!(html.contains(r#"<meta name="lapwing-desktop-session" content="abc123">"#));
     }
 
     #[test]
