@@ -506,6 +506,10 @@ Web 解析失败时沿用现有 parser 错误信息，但不显示“发送原�
 - 同一份失败输入已由 Windows x64 新包的 sidecar 重跑：`delivery generate --preset
   scorecard` 成功退出，生成 `scorecard-summary.png`（59,969 bytes）与 HTML 报告。
   该用户可触发缺陷在 `v5.1.1` 补丁版发布，而非留在已发布的 `v5.1.0`。
+- `v5.1.1` 标签 `9f100723737b` 的 Windows ZIP SHA-256 为
+  `a68b08ec437dcafccebd0fe42aad595522c4cb41a00f77f45aa9583fb6a11b5d`；解压到
+  `C:\build-validation\RacingMemory-v5.1.1-manual\RacingMemory-win11-x64` 后确认
+  `build-info.json` 显示版本 `5.1.1`，并已只打开目录交给用户手动启动验证。
 
 ## 10. 触点
 
